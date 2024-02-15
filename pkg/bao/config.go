@@ -269,6 +269,13 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 
 	if n.Dev == nil {
 		config += `api_addr = "` + scheme + "://" + apiAddr + `"` + "\n"
+
+		pluginDir := filepath.Join(directory, "plugins")
+		if err := os.MkdirAll(pluginDir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create external plugin directory (%v): %w", pluginDir, err)
+		}
+
+		config += `plugin_directory = "` + pluginDir + `"` + "\n"
 	}
 
 	return config, nil
