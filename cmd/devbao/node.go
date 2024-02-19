@@ -12,6 +12,7 @@ func BuildNodeCommand() *cli.Command {
 	}
 
 	c.Subcommands = append(c.Subcommands, BuildNodeCleanCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeEnvCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeListCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeResumeCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeStartCommand())

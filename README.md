@@ -33,7 +33,7 @@ interest!
    - [x] Resume node
    - [x] Clean nodes
    - [ ] Transit Seal Config
-   - [ ] Source environment
+   - [x] Source environment
    - [ ] Access node directory
  - [ ] Profiles
    - [ ] Transit Unseal profile

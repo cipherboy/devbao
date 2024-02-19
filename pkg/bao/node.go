@@ -293,3 +293,30 @@ func (n *Node) SaveInstanceConfig(config string) (string, error) {
 
 	return path, nil
 }
+
+func (n *Node) GetEnv() (map[string]string, error) {
+	results := make(map[string]string)
+	prefix := "VAULT_"
+
+	addr, isTls, err := n.Config.GetConnectAddr()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
+	}
+
+	scheme := "http"
+	if isTls {
+		scheme = "https"
+	}
+
+	results[prefix+"ADDR"] = fmt.Sprintf("%v://%v", scheme, addr)
+	if n.Config.Dev != nil {
+		token := "devroot"
+		if n.Config.Dev.Token != "" {
+			token = n.Config.Dev.Token
+		}
+
+		results[prefix+"TOKEN"] = token
+	}
+
+	return results, nil
+}
