@@ -11,11 +11,12 @@ func BuildNodeCommand() *cli.Command {
 		Usage:   "commands for managing non-clustered nodes",
 	}
 
-	c.Subcommands = append(c.Subcommands, BuildNodeStartDevCommand())
-	c.Subcommands = append(c.Subcommands, BuildNodeStartCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeCleanCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeListCommand())
-	c.Subcommands = append(c.Subcommands, BuildNodeStopCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeResumeCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeStartCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeStartDevCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeStopCommand())
 
 	return c
 }
