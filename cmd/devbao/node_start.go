@@ -9,19 +9,26 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func ServerFlags() []cli.Flag {
+func ServerNameFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:  "name",
 			Value: "dev",
 			Usage: "name for the instance",
 		},
+	}
+}
+
+func ServerFlags() []cli.Flag {
+	typeFlags := []cli.Flag{
 		&cli.StringFlag{
 			Name:  "type",
 			Value: "",
 			Usage: "type of node to run: `` for auto-detect preferring OpenBao, `bao` to run an OpenBao instance, or `vault` to run a HashiCorp Vault instance.",
 		},
 	}
+
+	return append(ServerNameFlags(), typeFlags...)
 }
 
 func DevServerFlags() []cli.Flag {

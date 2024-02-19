@@ -29,7 +29,7 @@ interest!
 
  - [ ] Nodes
    - [x] List nodes
-   - [ ] Stop node
+   - [x] Stop node
    - [ ] Resume node
    - [ ] Clean nodes
    - [ ] Transit Seal Config
