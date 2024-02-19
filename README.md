@@ -30,7 +30,7 @@ interest!
  - [ ] Nodes
    - [x] List nodes
    - [x] Stop node
-   - [ ] Resume node
+   - [x] Resume node
    - [ ] Clean nodes
    - [ ] Transit Seal Config
    - [ ] Source environment
