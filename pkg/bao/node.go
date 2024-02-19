@@ -20,11 +20,47 @@ type Node struct {
 	Config NodeConfig       `json:"config"`
 }
 
+func (n *Node) FromInterface(iface map[string]interface{}) error {
+	n.Name = iface["name"].(string)
+	n.Type = iface["type"].(string)
+
+	data, present := iface["exec"]
+	if present {
+		j, err := json.Marshal(data)
+		if err != nil {
+			return fmt.Errorf("error re-marshalling exec config: %w", err)
+		}
+
+		if err := json.Unmarshal(j, &n.Exec); err != nil {
+			return fmt.Errorf("error unmarshaling exec config; %w", err)
+		}
+	}
+
+	return n.Config.FromInterface(iface["config"].(map[string]interface{}))
+}
+
 type NodeConfigOpt interface{}
 
 var _ NodeConfigOpt = Listener(nil)
 var _ NodeConfigOpt = Storage(nil)
 var _ NodeConfigOpt = &DevConfig{}
+
+func ListNodes() ([]string, error) {
+	dir := NodeBaseDirectory()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		fmt.Errorf("error listing node directory (`%v`): %w", dir, err)
+	}
+
+	var results []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			results = append(results, entry.Name())
+		}
+	}
+
+	return results, nil
+}
 
 func LoadNode(name string) (*Node, error) {
 	var node Node
@@ -83,11 +119,15 @@ func (n *Node) Validate() error {
 	return n.Config.Validate()
 }
 
-func (n *Node) GetDirectory() string {
+func NodeBaseDirectory() string {
 	usr, _ := user.Current()
 	dir := usr.HomeDir
 
-	return filepath.Join(dir, ".local/share/devbao/nodes", n.Name)
+	return filepath.Join(dir, ".local/share/devbao/nodes")
+}
+
+func (n *Node) GetDirectory() string {
+	return filepath.Join(NodeBaseDirectory(), n.Name)
 }
 
 func (n *Node) buildExec() error {
@@ -200,14 +240,26 @@ func (n *Node) LoadConfig() error {
 
 	defer configFile.Close()
 
-	if err := json.NewDecoder(configFile).Decode(n); err != nil {
+	// We need to unmarshal to an intermediate interface so that we can figure
+	// out the correct types for the Storage and Listeners.
+	var cfg map[string]interface{}
+
+	if err := json.NewDecoder(configFile).Decode(&cfg); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if err := n.FromInterface(cfg); err != nil {
+		return fmt.Errorf("failed to translate config: %w", err)
 	}
 
 	return nil
 }
 
 func (n *Node) SaveConfig() error {
+	if err := n.Validate(); err != nil {
+		return fmt.Errorf("failed validating config prior to saving: %w", err)
+	}
+
 	directory := n.GetDirectory()
 	path := filepath.Join(directory, NODE_JSON_NAME)
 	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)

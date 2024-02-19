@@ -17,8 +17,7 @@ func main() {
 		Suggest:                true,
 	}
 
-	app.Commands = append(app.Commands, BuildStartDevCommand())
-	app.Commands = append(app.Commands, BuildStartCommand())
+	app.Commands = append(app.Commands, BuildNodeCommand())
 
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)

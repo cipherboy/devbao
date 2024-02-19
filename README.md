@@ -28,7 +28,7 @@ Feel free to comment on the issue tracker if things are of particular
 interest!
 
  - [ ] Nodes
-   - [ ] List nodes
+   - [x] List nodes
    - [ ] Stop node
    - [ ] Resume node
    - [ ] Clean nodes

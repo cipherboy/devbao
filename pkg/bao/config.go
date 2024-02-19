@@ -13,7 +13,12 @@ import (
 	"strings"
 )
 
+type Unmarshable interface {
+	FromInterface(iface map[string]interface{}) error
+}
+
 type ConfigBuilder interface {
+	Unmarshable
 	ToConfig(directory string) (string, error)
 }
 
@@ -79,6 +84,18 @@ type TCPListener struct {
 	TLS     *TLSConfig `json:"tls,omitempty"`
 }
 
+func (t *TCPListener) FromInterface(iface map[string]interface{}) error {
+	t.Address = iface["address"].(string)
+	if data, present := iface["tls"].(map[string]interface{}); present {
+		t.TLS = &TLSConfig{}
+		for _, certificate := range data["certs"].([]interface{}) {
+			t.TLS.Certificates = append(t.TLS.Certificates, certificate.(string))
+		}
+		t.TLS.Key = data["key"].(string)
+	}
+	return nil
+}
+
 func (t *TCPListener) ToConfig(directory string) (string, error) {
 	config := `listener "tcp" {` + "\n"
 
@@ -123,6 +140,11 @@ type UnixListener struct {
 	Path string `json:"path"`
 }
 
+func (u *UnixListener) FromInterface(iface map[string]interface{}) error {
+	u.Path = iface["path"].(string)
+	return nil
+}
+
 func (u *UnixListener) ToConfig(directory string) (string, error) {
 	config := `listener "unix" {` + "\n"
 	config += `path = "` + u.Path + `"`
@@ -144,6 +166,10 @@ var _ Listener = &UnixListener{}
 
 type RaftStorage struct{}
 
+func (r *RaftStorage) FromInterface(iface map[string]interface{}) error {
+	return nil
+}
+
 func (r *RaftStorage) ToConfig(directory string) (string, error) {
 	path := filepath.Join(directory, "storage/raft")
 
@@ -160,6 +186,10 @@ func (r *RaftStorage) ToConfig(directory string) (string, error) {
 
 type FileStorage struct{}
 
+func (f *FileStorage) FromInterface(iface map[string]interface{}) error {
+	return nil
+}
+
 func (f *FileStorage) ToConfig(directory string) (string, error) {
 	path := filepath.Join(directory, "storage/file")
 	if err := os.MkdirAll(path, 0755); err != nil {
@@ -175,6 +205,10 @@ func (f *FileStorage) ToConfig(directory string) (string, error) {
 
 type InmemStorage struct{}
 
+func (i *InmemStorage) FromInterface(iface map[string]interface{}) error {
+	return nil
+}
+
 func (i *InmemStorage) ToConfig(_ string) (string, error) {
 	config := `storage "inmem" {}` + "\n"
 	return config, nil
@@ -189,9 +223,62 @@ var _ Storage = &FileStorage{}
 var _ Storage = &InmemStorage{}
 
 type NodeConfig struct {
-	Dev       *DevConfig `json:"dev,omitempty"`
-	Listeners []Listener `json:"listners,omitempty"`
-	Storage   Storage    `json:"storage,omitempty"`
+	Dev           *DevConfig `json:"dev,omitempty"`
+	ListenerTypes []string   `json:"listener_types,omitempty"`
+	Listeners     []Listener `json:"listeners,omitempty"`
+	StorageType   string     `json:"storage_type,omitempty"`
+	Storage       Storage    `json:"storage,omitempty"`
+}
+
+func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
+	if data, present := iface["dev"]; present {
+		n.Dev = &DevConfig{}
+		if err := n.Dev.FromInterface(data.(map[string]interface{})); err != nil {
+			return fmt.Errorf("failed to load dev config: %w", err)
+		}
+	}
+
+	if listeners, present := iface["listener_types"]; present && listeners != nil {
+		for index, listenerTypeRaw := range listeners.([]interface{}) {
+			listenerType := listenerTypeRaw.(string)
+			n.ListenerTypes = append(n.ListenerTypes, listenerType)
+
+			switch listenerType {
+			case "tcp":
+				n.Listeners = append(n.Listeners, &TCPListener{})
+			case "unix":
+				n.Listeners = append(n.Listeners, &UnixListener{})
+			default:
+				return fmt.Errorf("unknown listener type at index %v: %v", index, listenerType)
+			}
+
+			listenerData := iface["listeners"].(map[string]interface{})
+			if err := n.Listeners[index].FromInterface(listenerData); err != nil {
+				return fmt.Errorf("error parsing listener data at index %v: %v", index, err)
+			}
+		}
+	}
+
+	if _, present := iface["storage_type"]; present {
+		n.StorageType = iface["storage_type"].(string)
+		switch n.StorageType {
+		case "raft":
+			n.Storage = &RaftStorage{}
+		case "file":
+			n.Storage = &FileStorage{}
+		case "inmem":
+			n.Storage = &InmemStorage{}
+		case "":
+		}
+
+		if n.Storage != nil {
+			if err := n.Storage.FromInterface(iface["storage"].(map[string]interface{})); err != nil {
+				return fmt.Errorf("error parsing storage data: %w", err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (n *NodeConfig) Validate() error {
@@ -199,8 +286,31 @@ func (n *NodeConfig) Validate() error {
 		return fmt.Errorf("no listeners specified and dev mode disabled")
 	}
 
+	for index, listener := range n.Listeners {
+		switch listener.(type) {
+		case *TCPListener:
+			n.ListenerTypes = append(n.ListenerTypes, "tcp")
+		case *UnixListener:
+			n.ListenerTypes = append(n.ListenerTypes, "unix")
+		default:
+			return fmt.Errorf("unknown listenerType at index %v: %T / %v", index, listener, listener)
+		}
+	}
+
 	if n.Dev == nil && n.Storage == nil {
 		return fmt.Errorf("no storage specified and dev mode disabled")
+	}
+
+	switch n.Storage.(type) {
+	case *RaftStorage:
+		n.StorageType = "raft"
+	case *FileStorage:
+		n.StorageType = "file"
+	case *InmemStorage:
+		n.StorageType = "inmem"
+	case nil:
+	default:
+		return fmt.Errorf("unknown storage type: %T / %v", n.Storage, n.Storage)
 	}
 
 	return nil
@@ -326,6 +436,12 @@ func (n *NodeConfig) AddArgs(directory string) ([]string, error) {
 type DevConfig struct {
 	Token   string `json:"token,omitempty"`
 	Address string `json:"address,omitempty"`
+}
+
+func (d *DevConfig) FromInterface(iface map[string]interface{}) error {
+	d.Token = iface["token"].(string)
+	d.Address = iface["address"].(string)
+	return nil
 }
 
 func (d *DevConfig) AddArgs(_ string) ([]string, error) {

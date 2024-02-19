@@ -39,13 +39,13 @@ func DevServerFlags() []cli.Flag {
 	}
 }
 
-func BuildStartDevCommand() *cli.Command {
+func BuildNodeStartDevCommand() *cli.Command {
 	c := &cli.Command{
 		Name:    "start-dev",
 		Aliases: []string{"d"},
 		Usage:   "start a dev-mode instance",
 
-		Action: RunStartDevCommand,
+		Action: RunNodeStartDevCommand,
 	}
 
 	c.Flags = append(c.Flags, ServerFlags()...)
@@ -54,7 +54,7 @@ func BuildStartDevCommand() *cli.Command {
 	return c
 }
 
-func RunStartDevCommand(cCtx *cli.Context) error {
+func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 
@@ -86,13 +86,13 @@ func ProdServerFlags() []cli.Flag {
 	}
 }
 
-func BuildStartCommand() *cli.Command {
+func BuildNodeStartCommand() *cli.Command {
 	c := &cli.Command{
 		Name:    "start",
 		Aliases: []string{"s"},
 		Usage:   "start a production instance",
 
-		Action: RunStartCommand,
+		Action: RunNodeStartCommand,
 	}
 
 	c.Flags = append(c.Flags, ServerFlags()...)
@@ -101,7 +101,7 @@ func BuildStartCommand() *cli.Command {
 	return c
 }
 
-func RunStartCommand(cCtx *cli.Context) error {
+func RunNodeStartCommand(cCtx *cli.Context) error {
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 	storage := cCtx.String("storage")
