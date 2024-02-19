@@ -239,7 +239,12 @@ func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
 	}
 
 	if listeners, present := iface["listener_types"]; present && listeners != nil {
-		for index, listenerTypeRaw := range listeners.([]interface{}) {
+		listenersDataRaw := iface["listeners"].([]interface{})
+		listenerTypesRaw := listeners.([]interface{})
+		if len(listenersDataRaw) != len(listenerTypesRaw) {
+			return fmt.Errorf("unequal number of listener types (%v) as listeners (%v)", len(listenerTypesRaw), len(listenersDataRaw))
+		}
+		for index, listenerTypeRaw := range listenerTypesRaw {
 			listenerType := listenerTypeRaw.(string)
 			n.ListenerTypes = append(n.ListenerTypes, listenerType)
 
@@ -252,7 +257,7 @@ func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
 				return fmt.Errorf("unknown listener type at index %v: %v", index, listenerType)
 			}
 
-			listenerData := iface["listeners"].(map[string]interface{})
+			listenerData := listenersDataRaw[index].(map[string]interface{})
 			if err := n.Listeners[index].FromInterface(listenerData); err != nil {
 				return fmt.Errorf("error parsing listener data at index %v: %v", index, err)
 			}
@@ -286,6 +291,7 @@ func (n *NodeConfig) Validate() error {
 		return fmt.Errorf("no listeners specified and dev mode disabled")
 	}
 
+	n.ListenerTypes = nil
 	for index, listener := range n.Listeners {
 		switch listener.(type) {
 		case *TCPListener:
