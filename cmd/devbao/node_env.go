@@ -20,8 +20,6 @@ func BuildNodeEnvCommand() *cli.Command {
 		Action: RunNodeEnvCommand,
 	}
 
-	c.Flags = append(c.Flags, ServerNameFlags()...)
-
 	return c
 }
 
@@ -45,7 +43,7 @@ func PrintEnv(node string, env map[string]string) error {
 
 func RunNodeEnvCommand(cCtx *cli.Context) error {
 	if !cCtx.Args().Present() {
-		return fmt.Errorf("missing required positional argument: <name>, the name of the instance to resume")
+		return fmt.Errorf("missing required positional argument: <name>, the node whose environment should be printed")
 	}
 
 	name := cCtx.Args().First()

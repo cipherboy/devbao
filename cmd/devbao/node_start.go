@@ -62,6 +62,10 @@ func BuildNodeStartDevCommand() *cli.Command {
 }
 
 func RunNodeStartDevCommand(cCtx *cli.Context) error {
+	if cCtx.Args().Present() {
+		return fmt.Errorf("unexpected positional argument -- this command takes none: `%v`", cCtx.Args().First())
+	}
+
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 
@@ -109,6 +113,10 @@ func BuildNodeStartCommand() *cli.Command {
 }
 
 func RunNodeStartCommand(cCtx *cli.Context) error {
+	if cCtx.Args().Present() {
+		return fmt.Errorf("unexpected positional argument -- this command takes none: `%v`", cCtx.Args().First())
+	}
+
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 	storage := cCtx.String("storage")

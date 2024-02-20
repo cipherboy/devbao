@@ -29,6 +29,10 @@ func BuildNodeListCommand() *cli.Command {
 }
 
 func RunNodeListCommand(cCtx *cli.Context) error {
+	if cCtx.Args().Present() {
+		return fmt.Errorf("unexpected positional argument -- this command takes none: `%v`", cCtx.Args().First())
+	}
+
 	nodes, err := bao.ListNodes()
 	if err != nil {
 		return err

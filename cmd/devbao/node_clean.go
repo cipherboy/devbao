@@ -20,14 +20,12 @@ func BuildNodeCleanCommand() *cli.Command {
 		Action: RunNodeCleanCommand,
 	}
 
-	c.Flags = append(c.Flags, ServerNameFlags()...)
-
 	return c
 }
 
 func RunNodeCleanCommand(cCtx *cli.Context) error {
 	if !cCtx.Args().Present() {
-		return fmt.Errorf("missing required positional argument: <name>, the name of the instance to resume")
+		return fmt.Errorf("missing required positional argument: <name>, the name of the instance to remove")
 	}
 
 	name := cCtx.Args().First()

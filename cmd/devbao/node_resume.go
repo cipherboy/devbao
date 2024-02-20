@@ -19,8 +19,6 @@ func BuildNodeResumeCommand() *cli.Command {
 		Action: RunNodeResumeCommand,
 	}
 
-	c.Flags = append(c.Flags, ServerNameFlags()...)
-
 	return c
 }
 
