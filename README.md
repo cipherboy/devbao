@@ -34,7 +34,7 @@ interest!
    - [x] Clean nodes
    - [ ] Transit Seal Config
    - [x] Source environment
-   - [ ] Access node directory
+   - [x] Access node directory
    - [ ] Get/Set recovery keys
    - [ ] Get/Set root token (prod)
  - [ ] Profiles
