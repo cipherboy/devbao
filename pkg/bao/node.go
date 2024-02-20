@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"github.com/openbao/openbao/api"
 )
 
 const NODE_JSON_NAME = "node.json"
@@ -294,13 +296,10 @@ func (n *Node) SaveInstanceConfig(config string) (string, error) {
 	return path, nil
 }
 
-func (n *Node) GetEnv() (map[string]string, error) {
-	results := make(map[string]string)
-	prefix := "VAULT_"
-
+func (n *Node) GetConnectAddr() (string, error) {
 	addr, isTls, err := n.Config.GetConnectAddr()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
+		return "", fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
 	}
 
 	scheme := "http"
@@ -308,15 +307,61 @@ func (n *Node) GetEnv() (map[string]string, error) {
 		scheme = "https"
 	}
 
-	results[prefix+"ADDR"] = fmt.Sprintf("%v://%v", scheme, addr)
+	return fmt.Sprintf("%v://%v", scheme, addr), nil
+}
+
+func (n *Node) GetToken() (string, error) {
 	if n.Config.Dev != nil {
 		token := "devroot"
 		if n.Config.Dev.Token != "" {
-			token = n.Config.Dev.Token
+			return n.Config.Dev.Token, nil
 		}
 
-		results[prefix+"TOKEN"] = token
+		return token, nil
 	}
 
+	return "", nil
+}
+
+func (n *Node) GetEnv() (map[string]string, error) {
+	results := make(map[string]string)
+	prefix := "VAULT_"
+
+	addr, err := n.GetConnectAddr()
+	if err != nil {
+		return nil, err
+	}
+
+	results[prefix+"ADDR"] = addr
+
+	token, err := n.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	results[prefix+"TOKEN"] = token
+
 	return results, nil
+}
+
+func (n *Node) GetClient() (*api.Client, error) {
+	addr, err := n.GetConnectAddr()
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := n.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := api.NewClient(&api.Config{
+		Address: addr,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	client.SetToken(token)
+	return client, nil
 }

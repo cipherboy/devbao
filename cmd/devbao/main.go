@@ -18,6 +18,7 @@ func main() {
 	}
 
 	app.Commands = append(app.Commands, BuildNodeCommand())
+	app.Commands = append(app.Commands, BuildProfileCommand())
 
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)

@@ -38,7 +38,7 @@ interest!
    - [ ] Get/Set recovery keys
    - [ ] Get/Set root token (prod)
  - [ ] Profiles
-   - [ ] Transit Unseal profile
+   - [x] Transit Unseal profile
    - [ ] PKI profile
  - [ ] Clusters
    - [ ] Transit Auto-Unseal key cluster + target cluster
