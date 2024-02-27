@@ -27,7 +27,7 @@ func PrintEnv(node string, env map[string]string) error {
 	fmt.Printf("# ===== node %v ===== #\n\n", node)
 
 	var envs []string
-	for envName, _ := range env {
+	for envName := range env {
 		envs = append(envs, envName)
 	}
 

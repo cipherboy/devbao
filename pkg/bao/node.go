@@ -11,8 +11,10 @@ import (
 	"github.com/openbao/openbao/api"
 )
 
-const NODE_JSON_NAME = "node.json"
-const INSTANCE_CONFIG_NAME = "config.hcl"
+const (
+	NODE_JSON_NAME       = "node.json"
+	INSTANCE_CONFIG_NAME = "config.hcl"
+)
 
 type Node struct {
 	Name string `json:"name"`
@@ -20,6 +22,8 @@ type Node struct {
 
 	Exec   *ExecEnvironment `json:"exec"`
 	Config NodeConfig       `json:"config"`
+
+	Token string `json:"token"`
 }
 
 func (n *Node) FromInterface(iface map[string]interface{}) error {
@@ -43,9 +47,11 @@ func (n *Node) FromInterface(iface map[string]interface{}) error {
 
 type NodeConfigOpt interface{}
 
-var _ NodeConfigOpt = Listener(nil)
-var _ NodeConfigOpt = Storage(nil)
-var _ NodeConfigOpt = &DevConfig{}
+var (
+	_ NodeConfigOpt = Listener(nil)
+	_ NodeConfigOpt = Storage(nil)
+	_ NodeConfigOpt = &DevConfig{}
+)
 
 func ListNodes() ([]string, error) {
 	dir := NodeBaseDirectory()
@@ -118,6 +124,10 @@ func (n *Node) Validate() error {
 		return fmt.Errorf("invalid node type (`%s`): expected either empty (``), OpenBao (`bao`), or HashiCorp Vault (`vault`)", n.Type)
 	}
 
+	if n.Config.Dev != nil && n.Token == "" && n.Config.Dev.Token != "" {
+		n.Token = n.Config.Dev.Token
+	}
+
 	return n.Config.Validate()
 }
 
@@ -138,7 +148,7 @@ func (n *Node) buildExec() error {
 	}
 
 	directory := n.GetDirectory()
-	if err := os.MkdirAll(directory, 0755); err != nil {
+	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return fmt.Errorf("failed to create node directory (%v): %w", directory, err)
 	}
 
@@ -264,7 +274,7 @@ func (n *Node) SaveConfig() error {
 
 	directory := n.GetDirectory()
 	path := filepath.Join(directory, NODE_JSON_NAME)
-	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open config file (`%v`) for writing: %w", path, err)
 	}
@@ -282,7 +292,7 @@ func (n *Node) SaveInstanceConfig(config string) (string, error) {
 	directory := n.GetDirectory()
 	path := filepath.Join(directory, INSTANCE_CONFIG_NAME)
 
-	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return "", fmt.Errorf("failed to open instance config file (`%v`) for writing: %w", path, err)
 	}
@@ -310,19 +320,6 @@ func (n *Node) GetConnectAddr() (string, error) {
 	return fmt.Sprintf("%v://%v", scheme, addr), nil
 }
 
-func (n *Node) GetToken() (string, error) {
-	if n.Config.Dev != nil {
-		token := "devroot"
-		if n.Config.Dev.Token != "" {
-			return n.Config.Dev.Token, nil
-		}
-
-		return token, nil
-	}
-
-	return "", nil
-}
-
 func (n *Node) GetEnv() (map[string]string, error) {
 	results := make(map[string]string)
 	prefix := "VAULT_"
@@ -333,24 +330,13 @@ func (n *Node) GetEnv() (map[string]string, error) {
 	}
 
 	results[prefix+"ADDR"] = addr
-
-	token, err := n.GetToken()
-	if err != nil {
-		return nil, err
-	}
-
-	results[prefix+"TOKEN"] = token
+	results[prefix+"TOKEN"] = n.Token
 
 	return results, nil
 }
 
 func (n *Node) GetClient() (*api.Client, error) {
 	addr, err := n.GetConnectAddr()
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := n.GetToken()
 	if err != nil {
 		return nil, err
 	}
@@ -362,6 +348,36 @@ func (n *Node) GetClient() (*api.Client, error) {
 		return nil, err
 	}
 
-	client.SetToken(token)
+	client.SetToken(n.Token)
 	return client, nil
+}
+
+func (n *Node) SetToken(token string) (bool /* validated */, error) {
+	n.Token = token
+
+	if err := n.Exec.ValidateRunning(); err == nil {
+		if err := n.ValidateToken(token); err != nil {
+			return false, fmt.Errorf("token validation failed: %w", err)
+		}
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (n *Node) ValidateToken(token string) error {
+	client, err := n.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client: %w", err)
+	}
+
+	client.SetToken(token)
+
+	_, err = client.Sys().ListMounts()
+	if err != nil {
+		return fmt.Errorf("invalid token: %w", err)
+	}
+
+	return nil
 }

@@ -36,7 +36,7 @@ interest!
    - [x] Source environment
    - [x] Access node directory
    - [ ] Get/Set recovery keys
-   - [ ] Get/Set root token (prod)
+   - [x] Get/Set root token (prod)
  - [ ] Profiles
    - [x] Transit Unseal profile
    - [ ] PKI profile

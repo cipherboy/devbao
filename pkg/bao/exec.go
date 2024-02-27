@@ -15,8 +15,10 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-const SERVICE_LOG_NAME = "service.log"
-const EXEC_JSON_NAME = "exec.json"
+const (
+	SERVICE_LOG_NAME = "service.log"
+	EXEC_JSON_NAME   = "exec.json"
+)
 
 type ExecEnvironment struct {
 	Binary    string   `json:"binary"`
@@ -84,7 +86,7 @@ func (e *ExecEnvironment) SaveConfig(pid int) error {
 	}
 
 	path := filepath.Join(e.Directory, EXEC_JSON_NAME)
-	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open config file (`%v`) for writing: %w", path, err)
 	}
@@ -225,7 +227,7 @@ func expandErrWithLogs(env *ExecEnvironment, err error) error {
 
 func doExec(env *ExecEnvironment) error {
 	logPath := filepath.Join(env.Directory, SERVICE_LOG_NAME)
-	logs, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	logs, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open logs (`%v`) for writing: %w", logPath, err)
 	}

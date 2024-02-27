@@ -26,8 +26,10 @@ type ArgBuilder interface {
 	AddArgs(directory string) ([]string, error)
 }
 
-const TLS_CERTS_NAME = "fullchain.pem"
-const TLS_KEY_NAME = "leaf-key.pem"
+const (
+	TLS_CERTS_NAME = "fullchain.pem"
+	TLS_KEY_NAME   = "leaf-key.pem"
+)
 
 type TLSConfig struct {
 	Certificates []string `json:"certs"`
@@ -35,7 +37,7 @@ type TLSConfig struct {
 }
 
 func (t *TLSConfig) Write(certPath string, keyPath string) error {
-	certFile, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	certFile, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open certs to path (%v): %w", certPath, err)
 	}
@@ -47,7 +49,7 @@ func (t *TLSConfig) Write(certPath string, keyPath string) error {
 		}
 	}
 
-	keyFile, err := os.OpenFile(keyPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	keyFile, err := os.OpenFile(keyPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open keys to path (%v): %w", keyPath, err)
 	}
@@ -161,8 +163,10 @@ type Listener interface {
 	GetConnectAddr() (string, error)
 }
 
-var _ Listener = &TCPListener{}
-var _ Listener = &UnixListener{}
+var (
+	_ Listener = &TCPListener{}
+	_ Listener = &UnixListener{}
+)
 
 type RaftStorage struct{}
 
@@ -177,7 +181,7 @@ func (r *RaftStorage) ToConfig(directory string) (string, error) {
 	config += `  path = "` + path + `"` + "\n"
 	config += "}\n"
 
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0o755); err != nil {
 		return "", fmt.Errorf("failed to make raft storage directory (%v): %w", path, err)
 	}
 
@@ -192,7 +196,7 @@ func (f *FileStorage) FromInterface(iface map[string]interface{}) error {
 
 func (f *FileStorage) ToConfig(directory string) (string, error) {
 	path := filepath.Join(directory, "storage/file")
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0o755); err != nil {
 		return "", fmt.Errorf("failed to make file storage directory (%v): %w", path, err)
 	}
 
@@ -218,9 +222,11 @@ type Storage interface {
 	ConfigBuilder
 }
 
-var _ Storage = &RaftStorage{}
-var _ Storage = &FileStorage{}
-var _ Storage = &InmemStorage{}
+var (
+	_ Storage = &RaftStorage{}
+	_ Storage = &FileStorage{}
+	_ Storage = &InmemStorage{}
+)
 
 type NodeConfig struct {
 	Dev           *DevConfig `json:"dev,omitempty"`
@@ -387,7 +393,7 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 		config += `api_addr = "` + scheme + "://" + apiAddr + `"` + "\n"
 
 		pluginDir := filepath.Join(directory, "plugins")
-		if err := os.MkdirAll(pluginDir, 0755); err != nil {
+		if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 			return "", fmt.Errorf("failed to create external plugin directory (%v): %w", pluginDir, err)
 		}
 
