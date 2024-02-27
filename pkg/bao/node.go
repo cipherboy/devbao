@@ -23,12 +23,24 @@ type Node struct {
 	Exec   *ExecEnvironment `json:"exec"`
 	Config NodeConfig       `json:"config"`
 
-	Token string `json:"token"`
+	Token      string   `json:"token"`
+	UnsealKeys []string `json:"unseal_keys,omitempty"`
 }
 
 func (n *Node) FromInterface(iface map[string]interface{}) error {
 	n.Name = iface["name"].(string)
 	n.Type = iface["type"].(string)
+
+	if _, present := iface["token"]; present {
+		n.Token = iface["token"].(string)
+	}
+
+	if unsealKeysRaw, ok := iface["unseal_keys"].([]interface{}); ok {
+		n.UnsealKeys = nil
+		for _, keyRaw := range unsealKeysRaw {
+			n.UnsealKeys = append(n.UnsealKeys, keyRaw.(string))
+		}
+	}
 
 	data, present := iface["exec"]
 	if present {

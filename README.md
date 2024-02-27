@@ -35,7 +35,7 @@ interest!
    - [ ] Transit Seal Config
    - [x] Source environment
    - [x] Access node directory
-   - [ ] Get/Set recovery keys
+   - [x] Get/Set unseal keys
    - [x] Get/Set root token (prod)
  - [ ] Profiles
    - [x] Transit Unseal profile
