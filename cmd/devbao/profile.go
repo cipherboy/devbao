@@ -12,6 +12,7 @@ func BuildProfileCommand() *cli.Command {
 	}
 
 	c.Subcommands = append(c.Subcommands, BuildProfileApplyCommand())
+	c.Subcommands = append(c.Subcommands, BuildProfileListCommand())
 
 	return c
 }

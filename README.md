@@ -43,8 +43,10 @@ interest!
    - [x] Seal
    - [X] Unseal
  - [ ] Profiles
+   - [x] List profiles
    - [x] Transit Unseal profile
    - [ ] PKI profile
+   - [ ] Make profiles configurable
  - [ ] Clusters
    - [ ] Transit Auto-Unseal key cluster + target cluster
    - [ ] OSS HA cluster

@@ -7,6 +7,12 @@ import (
 	"github.com/openbao/openbao/api"
 )
 
+func ListPolicies() []string {
+	return []string{
+		"transit",
+	}
+}
+
 func PolicySetup(client *api.Client, policy string) error {
 	switch strings.ToLower(policy) {
 	case "transit":
