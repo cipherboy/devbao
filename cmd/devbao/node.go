@@ -18,11 +18,13 @@ func BuildNodeCommand() *cli.Command {
 	c.Subcommands = append(c.Subcommands, BuildNodeGetTokenCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeListCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeResumeCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeSealCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeSetUnsealCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeSetTokenCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeStartCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeStartDevCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeStopCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeUnsealCommand())
 
 	return c
 }

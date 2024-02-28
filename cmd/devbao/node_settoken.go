@@ -41,7 +41,7 @@ func RunNodeSetTokenCommand(cCtx *cli.Context) error {
 	}
 
 	if !validated {
-		fmt.Fprintf(os.Stderr, "[warning] instance (%v) was not running; could not validate provided token", name)
+		fmt.Fprintf(os.Stderr, "[warning] instance (%v) was not running; could not validate provided token\n", name)
 	}
 
 	return node.SaveConfig()

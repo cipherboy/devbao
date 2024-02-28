@@ -28,6 +28,8 @@ Feel free to comment on the issue tracker if things are of particular
 interest!
 
  - [ ] Nodes
+   - [x] Start node
+     - [ ] Auto-initialize
    - [x] List nodes
    - [x] Stop node
    - [x] Resume node
@@ -37,6 +39,9 @@ interest!
    - [x] Access node directory
    - [x] Get/Set unseal keys
    - [x] Get/Set root token (prod)
+   - [ ] Initialize
+   - [x] Seal
+   - [X] Unseal
  - [ ] Profiles
    - [x] Transit Unseal profile
    - [ ] PKI profile
