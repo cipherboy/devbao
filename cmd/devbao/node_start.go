@@ -94,6 +94,18 @@ func ProdServerFlags() []cli.Flag {
 			Value: "raft",
 			Usage: "Storage backend to use; choose between `raft`, `file`, or `inmem`. File and Memory backends are not recommended for production use.",
 		},
+		&cli.BoolFlag{
+			Name:    "initialize",
+			Aliases: []string{"auto-initialize", "i"},
+			Value:   false,
+			Usage:   "Automatically initialize the underlying node, saving unseal keys",
+		},
+		&cli.BoolFlag{
+			Name:    "unseal",
+			Aliases: []string{"auto-unseal", "u"},
+			Value:   false,
+			Usage:   "Automatically unseal the underlying node; requires --initialize",
+		},
 	}
 }
 
@@ -120,6 +132,12 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 	storage := cCtx.String("storage")
+	initialize := cCtx.Bool("initialize")
+	unseal := cCtx.Bool("unseal")
+
+	if unseal && !initialize {
+		return fmt.Errorf("--unseal requires --initialize, but was not provided")
+	}
 
 	var opts []bao.NodeConfigOpt
 
@@ -154,5 +172,21 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("failed to build node: %w", err)
 	}
 
-	return node.Start()
+	if err := node.Start(); err != nil {
+		return fmt.Errorf("failed to start node: %w", err)
+	}
+
+	if initialize {
+		if err := node.Initialize(); err != nil {
+			return fmt.Errorf("failed to initialize node: %w", err)
+		}
+
+		if unseal {
+			if _, err := node.Unseal(); err != nil {
+				return fmt.Errorf("failed to unseal node: %w", err)
+			}
+		}
+	}
+
+	return nil
 }

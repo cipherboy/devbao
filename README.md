@@ -29,7 +29,7 @@ interest!
 
  - [ ] Nodes
    - [x] Start node
-     - [ ] Auto-initialize
+     - [x] Auto-initialize
    - [x] List nodes
    - [x] Stop node
    - [x] Resume node

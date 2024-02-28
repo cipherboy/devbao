@@ -449,3 +449,35 @@ func (n *Node) Initialize() error {
 
 	return n.SaveConfig()
 }
+
+func (n *Node) Unseal() (bool, error) {
+	client, err := n.GetClient()
+	if err != nil {
+		return false, fmt.Errorf("failed to get client for node: %w", err)
+	}
+
+	if len(n.UnsealKeys) == 0 {
+		return false, fmt.Errorf("no unseal keys stored for node %v", n.Name)
+	}
+
+	for index, key := range n.UnsealKeys {
+		status, err := client.Sys().SealStatus()
+		if err != nil {
+			return false, fmt.Errorf("failed to fetch unseal status: %w", err)
+		}
+
+		if !status.Sealed {
+			if index == 0 {
+				return false, nil
+			}
+			break
+		}
+
+		_, err = client.Sys().Unseal(key)
+		if err != nil {
+			return false, fmt.Errorf("failed to provide unseal shard: %w", err)
+		}
+	}
+
+	return true, nil
+}
