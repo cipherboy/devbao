@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/openbao/openbao/api"
 )
@@ -392,4 +393,59 @@ func (n *Node) ValidateToken(token string) error {
 	}
 
 	return nil
+}
+
+func (n *Node) Initialize() error {
+	client, err := n.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client for node: %w", err)
+	}
+
+	initialized, err := client.Sys().InitStatus()
+	if err != nil {
+		return fmt.Errorf("failed to read initialization status of node: %w", err)
+	}
+
+	if initialized {
+		return fmt.Errorf("node is already initialized")
+	}
+
+	if n.Token != "" || len(n.UnsealKeys) != 0 {
+		return fmt.Errorf("refusing to overwrite existing token or unseal keys")
+	}
+
+	req := &api.InitRequest{
+		SecretShares:    3,
+		SecretThreshold: 2,
+	}
+	resp, err := client.Sys().Init(req)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not applicable") {
+			return fmt.Errorf("failed to initialize specified node via Shamir's: %w", err)
+		}
+
+		req = &api.InitRequest{
+			RecoveryShares:    3,
+			RecoveryThreshold: 2,
+		}
+
+		resp, err = client.Sys().Init(req)
+		if err != nil {
+			return fmt.Errorf("failed to initialize specified node via auto-unseal: %w", err)
+		}
+	}
+
+	if len(resp.KeysB64) != 0 && len(resp.RecoveryKeysB64) != 0 {
+		return fmt.Errorf("both unseal keys (%v) and recovery keys (%v) were provided in the response", resp.KeysB64, resp.RecoveryKeysB64)
+	}
+
+	if len(resp.KeysB64) != 0 {
+		n.UnsealKeys = resp.KeysB64
+	} else if len(resp.RecoveryKeysB64) != 0 {
+		n.UnsealKeys = resp.RecoveryKeysB64
+	}
+
+	n.Token = resp.RootToken
+
+	return n.SaveConfig()
 }

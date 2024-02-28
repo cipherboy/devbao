@@ -16,6 +16,7 @@ func BuildNodeCommand() *cli.Command {
 	c.Subcommands = append(c.Subcommands, BuildNodeEnvCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeGetUnsealCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeGetTokenCommand())
+	c.Subcommands = append(c.Subcommands, BuildNodeInitializeCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeListCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeResumeCommand())
 	c.Subcommands = append(c.Subcommands, BuildNodeSealCommand())

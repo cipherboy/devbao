@@ -39,7 +39,7 @@ interest!
    - [x] Access node directory
    - [x] Get/Set unseal keys
    - [x] Get/Set root token (prod)
-   - [ ] Initialize
+   - [x] Initialize
    - [x] Seal
    - [X] Unseal
  - [ ] Profiles

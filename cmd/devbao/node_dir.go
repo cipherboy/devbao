@@ -11,7 +11,6 @@ import (
 func BuildNodeDirCommand() *cli.Command {
 	c := &cli.Command{
 		Name:      "dir",
-		Aliases:   []string{"i"},
 		ArgsUsage: "<name>",
 		Usage:     "print the expected directory for the given instance",
 
