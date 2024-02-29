@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/cipherboy/devbao/pkg/bao"
 
@@ -39,5 +40,9 @@ func RunProfileApplyCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("failed to get client for node %v: %w", name, err)
 	}
 
-	return bao.PolicySetup(client, policy)
+	warnings, err := bao.PolicySetup(client, policy)
+	for index, warning := range warnings {
+		fmt.Fprintf(os.Stderr, " - [warning %d]: %v\n", index, warning)
+	}
+	return err
 }

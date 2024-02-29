@@ -45,7 +45,8 @@ interest!
  - [ ] Profiles
    - [x] List profiles
    - [x] Transit Unseal profile
-   - [ ] PKI profile
+   - [x] PKI profile
+   - [ ] Undo profiles
    - [ ] Make profiles configurable
  - [ ] Clusters
    - [ ] Transit Auto-Unseal key cluster + target cluster
