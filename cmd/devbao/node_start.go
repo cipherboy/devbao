@@ -9,26 +9,32 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func ServerNameFlags() []cli.Flag {
+func ServerNameFlags(name string) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:  "name",
-			Value: "dev",
+			Value: name,
 			Usage: "name for the instance",
 		},
 	}
 }
 
-func ServerFlags() []cli.Flag {
+func ServerFlags(name string) []cli.Flag {
 	typeFlags := []cli.Flag{
 		&cli.StringFlag{
 			Name:  "type",
 			Value: "",
 			Usage: "type of node to run: `` for auto-detect preferring OpenBao, `bao` to run an OpenBao instance, or `vault` to run a HashiCorp Vault instance.",
 		},
+		&cli.BoolFlag{
+			Name:    "force",
+			Aliases: []string{"f"},
+			Value:   false,
+			Usage:   "overwrite an existing node, if present",
+		},
 	}
 
-	return append(ServerNameFlags(), typeFlags...)
+	return append(ServerNameFlags(name), typeFlags...)
 }
 
 func DevServerFlags() []cli.Flag {
@@ -55,7 +61,7 @@ func BuildNodeStartDevCommand() *cli.Command {
 		Action: RunNodeStartDevCommand,
 	}
 
-	c.Flags = append(c.Flags, ServerFlags()...)
+	c.Flags = append(c.Flags, ServerFlags("dev")...)
 	c.Flags = append(c.Flags, DevServerFlags()...)
 
 	return c
@@ -68,7 +74,18 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
+	force := cCtx.Bool("force")
 
+	if !force {
+		present, err := bao.NodeExists(name)
+		if err != nil {
+			return fmt.Errorf("error checking if node exists: %w", err)
+		}
+
+		if present {
+			return fmt.Errorf("refusing to overwrite existing node %v", name)
+		}
+	}
 	opts := &bao.DevConfig{
 		Token:   cCtx.String("token"),
 		Address: cCtx.String("address"),
@@ -118,7 +135,7 @@ func BuildNodeStartCommand() *cli.Command {
 		Action: RunNodeStartCommand,
 	}
 
-	c.Flags = append(c.Flags, ServerFlags()...)
+	c.Flags = append(c.Flags, ServerFlags("prod")...)
 	c.Flags = append(c.Flags, ProdServerFlags()...)
 
 	return c
@@ -134,6 +151,18 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 	storage := cCtx.String("storage")
 	initialize := cCtx.Bool("initialize")
 	unseal := cCtx.Bool("unseal")
+	force := cCtx.Bool("force")
+
+	if !force {
+		present, err := bao.NodeExists(name)
+		if err != nil {
+			return fmt.Errorf("error checking if node exists: %w", err)
+		}
+
+		if present {
+			return fmt.Errorf("refusing to overwrite existing node %v", name)
+		}
+	}
 
 	if unseal && !initialize {
 		return fmt.Errorf("--unseal requires --initialize, but was not provided")

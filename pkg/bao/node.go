@@ -68,9 +68,13 @@ var (
 
 func ListNodes() ([]string, error) {
 	dir := NodeBaseDirectory()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create node directory (%v): %w", dir, err)
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Errorf("error listing node directory (`%v`): %w", dir, err)
+		return nil, fmt.Errorf("error listing node directory (`%v`): %w", dir, err)
 	}
 
 	var results []string
@@ -81,6 +85,21 @@ func ListNodes() ([]string, error) {
 	}
 
 	return results, nil
+}
+
+func NodeExists(name string) (bool, error) {
+	nodes, err := ListNodes()
+	if err != nil {
+		return false, err
+	}
+
+	for _, node := range nodes {
+		if node == name {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func LoadNode(name string) (*Node, error) {

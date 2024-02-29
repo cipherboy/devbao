@@ -19,8 +19,6 @@ func BuildNodeStopCommand() *cli.Command {
 		Action: RunNodeStopCommand,
 	}
 
-	c.Flags = append(c.Flags, ServerNameFlags()...)
-
 	return c
 }
 
