@@ -46,11 +46,15 @@ interest!
    - [x] List profiles
    - [x] Transit Unseal profile
    - [x] PKI profile
-   - [ ] Undo profiles
+   - [ ] Userpass profile
+   - [x] Remove profiles
    - [ ] Make profiles configurable
  - [ ] Clusters
    - [ ] Transit Auto-Unseal key cluster + target cluster
    - [ ] OSS HA cluster
+    - [ ] Start fresh 3-node cluster
+    - [ ] Add HA from existing node
+    - [ ] Add node
  - [ ] benchmark-vault integration
  - [ ] Auto-fetch release binaries
  - [ ] Ecosystem integrations

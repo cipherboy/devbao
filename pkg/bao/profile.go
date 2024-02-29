@@ -26,6 +26,17 @@ func PolicySetup(client *api.Client, policy string) ([]string, error) {
 	}
 }
 
+func PolicyRemove(client *api.Client, policy string) ([]string, error) {
+	switch strings.ToLower(policy) {
+	case "pki":
+		return PolicyPKISealMountRemove(client)
+	case "transit":
+		return PolicyTransitSealMountRemove(client)
+	default:
+		return nil, fmt.Errorf("unknown policy to apply: %v", policy)
+	}
+}
+
 func PolicyTransitSealMountSetup(client *api.Client) ([]string, error) {
 	if err := client.Sys().Mount("transit", &api.MountInput{
 		Type: "transit",
@@ -41,6 +52,14 @@ func PolicyTransitSealMountSetup(client *api.Client) ([]string, error) {
 	}
 
 	return resp.Warnings, nil
+}
+
+func PolicyTransitSealMountRemove(client *api.Client) ([]string, error) {
+	if err := client.Sys().Unmount("transit"); err != nil {
+		return nil, fmt.Errorf("failed to remove transit mount: %w", err)
+	}
+
+	return nil, nil
 }
 
 func PolicyPKISealMountSetup(client *api.Client) ([]string, error) {
@@ -276,4 +295,16 @@ func PolicyPKISealMountSetup(client *api.Client) ([]string, error) {
 	})
 
 	return warnings, nil
+}
+
+func PolicyPKISealMountRemove(client *api.Client) ([]string, error) {
+	if err := client.Sys().Unmount("pki-int"); err != nil {
+		return nil, fmt.Errorf("failed to remove intermediate CA mount: %w", err)
+	}
+
+	if err := client.Sys().Unmount("pki-root"); err != nil {
+		return nil, fmt.Errorf("failed to remove root CA mount: %w", err)
+	}
+
+	return nil, nil
 }
