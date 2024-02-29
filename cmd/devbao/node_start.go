@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/cipherboy/devbao/pkg/bao"
 
@@ -31,6 +33,11 @@ func ServerFlags(name string) []cli.Flag {
 			Aliases: []string{"f"},
 			Value:   false,
 			Usage:   "overwrite an existing node, if present",
+		},
+		&cli.StringSliceFlag{
+			Name:    "profiles",
+			Aliases: []string{"p"},
+			Usage:   "profiles to apply to the new node",
 		},
 	}
 
@@ -75,6 +82,7 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 	force := cCtx.Bool("force")
+	profiles := cCtx.StringSlice("profiles")
 
 	if !force {
 		present, err := bao.NodeExists(name)
@@ -96,7 +104,31 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("failed to build node: %w", err)
 	}
 
-	return node.Start()
+	if err := node.Start(); err != nil {
+		return fmt.Errorf("failed to start node: %w", err)
+	}
+
+	client, err := node.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client for node %v: %w", name, err)
+	}
+
+	for profileIndex, profile := range profiles {
+		warnings, err := bao.PolicySetup(client, profile)
+		if len(warnings) != 0 || err != nil {
+			fmt.Fprintf(os.Stderr, "for profile [%d/%v]:\n", profileIndex, profile)
+		}
+
+		for index, warning := range warnings {
+			fmt.Fprintf(os.Stderr, " - [warning %d]: %v\n", index, warning)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ProdServerFlags() []cli.Flag {
@@ -152,6 +184,7 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 	initialize := cCtx.Bool("initialize")
 	unseal := cCtx.Bool("unseal")
 	force := cCtx.Bool("force")
+	profiles := cCtx.StringSlice("profiles")
 
 	if !force {
 		present, err := bao.NodeExists(name)
@@ -166,6 +199,10 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 
 	if unseal && !initialize {
 		return fmt.Errorf("--unseal requires --initialize, but was not provided")
+	}
+
+	if len(profiles) > 0 && !unseal {
+		return fmt.Errorf("using --profiles requires --unseal and --initialize")
 	}
 
 	var opts []bao.NodeConfigOpt
@@ -214,8 +251,31 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 			if _, err := node.Unseal(); err != nil {
 				return fmt.Errorf("failed to unseal node: %w", err)
 			}
+
+			// TODO: use a client request with proper back-off to determine
+			// when the node is responding.
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 
+	client, err := node.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client for node %v: %w", name, err)
+	}
+
+	for profileIndex, profile := range profiles {
+		warnings, err := bao.PolicySetup(client, profile)
+		if len(warnings) != 0 || err != nil {
+			fmt.Fprintf(os.Stderr, "for profile [%d/%v]:\n", profileIndex, profile)
+		}
+
+		for index, warning := range warnings {
+			fmt.Fprintf(os.Stderr, " - [warning %d]: %v\n", index, warning)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
