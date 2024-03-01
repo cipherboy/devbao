@@ -24,11 +24,11 @@ func BuildProfileRemoveCommand() *cli.Command {
 
 func RunProfileRemoveCommand(cCtx *cli.Context) error {
 	if len(cCtx.Args().Slice()) != 2 {
-		return fmt.Errorf("missing required positional argument: instance name and policy\nUsage: devbao policy remove <name> <profile>")
+		return fmt.Errorf("missing required positional argument: instance name and profile\nUsage: devbao profile remove <name> <profile>")
 	}
 
 	name := cCtx.Args().First()
-	policy := cCtx.Args().Get(1)
+	profile := cCtx.Args().Get(1)
 
 	node, err := bao.LoadNode(name)
 	if err != nil {
@@ -40,7 +40,7 @@ func RunProfileRemoveCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("failed to get client for node %v: %w", name, err)
 	}
 
-	warnings, err := bao.PolicyRemove(client, policy)
+	warnings, err := bao.ProfileRemove(client, profile)
 	for index, warning := range warnings {
 		fmt.Fprintf(os.Stderr, " - [warning %d]: %v\n", index, warning)
 	}

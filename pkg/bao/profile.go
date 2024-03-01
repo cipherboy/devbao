@@ -8,36 +8,47 @@ import (
 	"github.com/openbao/openbao/api"
 )
 
-func ListPolicies() []string {
+func ListProfiles() []string {
 	return []string{
 		"pki",
 		"transit",
 	}
 }
 
-func PolicySetup(client *api.Client, policy string) ([]string, error) {
-	switch strings.ToLower(policy) {
+func ProfileDescription(name string) string {
+	switch name {
 	case "pki":
-		return PolicyPKISealMountSetup(client)
+		return "enable a two-tier root & intermediate CA hierarchy"
 	case "transit":
-		return PolicyTransitSealMountSetup(client)
+		return "enable transit for auto-unseal of another cluster"
+	}
+
+	return ""
+}
+
+func ProfileSetup(client *api.Client, profile string) ([]string, error) {
+	switch strings.ToLower(profile) {
+	case "pki":
+		return ProfilePKISealMountSetup(client)
+	case "transit":
+		return ProfileTransitSealMountSetup(client)
 	default:
-		return nil, fmt.Errorf("unknown policy to apply: %v", policy)
+		return nil, fmt.Errorf("unknown profile to apply: %v", profile)
 	}
 }
 
-func PolicyRemove(client *api.Client, policy string) ([]string, error) {
-	switch strings.ToLower(policy) {
+func ProfileRemove(client *api.Client, profile string) ([]string, error) {
+	switch strings.ToLower(profile) {
 	case "pki":
-		return PolicyPKISealMountRemove(client)
+		return ProfilePKISealMountRemove(client)
 	case "transit":
-		return PolicyTransitSealMountRemove(client)
+		return ProfileTransitSealMountRemove(client)
 	default:
-		return nil, fmt.Errorf("unknown policy to apply: %v", policy)
+		return nil, fmt.Errorf("unknown profile to apply: %v", profile)
 	}
 }
 
-func PolicyTransitSealMountSetup(client *api.Client) ([]string, error) {
+func ProfileTransitSealMountSetup(client *api.Client) ([]string, error) {
 	if err := client.Sys().Mount("transit", &api.MountInput{
 		Type: "transit",
 	}); err != nil {
@@ -54,7 +65,7 @@ func PolicyTransitSealMountSetup(client *api.Client) ([]string, error) {
 	return resp.Warnings, nil
 }
 
-func PolicyTransitSealMountRemove(client *api.Client) ([]string, error) {
+func ProfileTransitSealMountRemove(client *api.Client) ([]string, error) {
 	if err := client.Sys().Unmount("transit"); err != nil {
 		return nil, fmt.Errorf("failed to remove transit mount: %w", err)
 	}
@@ -62,7 +73,7 @@ func PolicyTransitSealMountRemove(client *api.Client) ([]string, error) {
 	return nil, nil
 }
 
-func PolicyPKISealMountSetup(client *api.Client) ([]string, error) {
+func ProfilePKISealMountSetup(client *api.Client) ([]string, error) {
 	var warnings []string
 
 	// Orders of operation
@@ -297,7 +308,7 @@ func PolicyPKISealMountSetup(client *api.Client) ([]string, error) {
 	return warnings, nil
 }
 
-func PolicyPKISealMountRemove(client *api.Client) ([]string, error) {
+func ProfilePKISealMountRemove(client *api.Client) ([]string, error) {
 	if err := client.Sys().Unmount("pki-int"); err != nil {
 		return nil, fmt.Errorf("failed to remove intermediate CA mount: %w", err)
 	}

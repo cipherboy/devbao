@@ -114,7 +114,7 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	}
 
 	for profileIndex, profile := range profiles {
-		warnings, err := bao.PolicySetup(client, profile)
+		warnings, err := bao.ProfileSetup(client, profile)
 		if len(warnings) != 0 || err != nil {
 			fmt.Fprintf(os.Stderr, "for profile [%d/%v]:\n", profileIndex, profile)
 		}
@@ -264,7 +264,7 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 	}
 
 	for profileIndex, profile := range profiles {
-		warnings, err := bao.PolicySetup(client, profile)
+		warnings, err := bao.ProfileSetup(client, profile)
 		if len(warnings) != 0 || err != nil {
 			fmt.Fprintf(os.Stderr, "for profile [%d/%v]:\n", profileIndex, profile)
 		}

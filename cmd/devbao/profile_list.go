@@ -21,8 +21,8 @@ func BuildProfileListCommand() *cli.Command {
 }
 
 func RunProfileListCommand(cCtx *cli.Context) error {
-	for _, policy := range bao.ListPolicies() {
-		fmt.Printf(" - %v\n", policy)
+	for _, profile := range bao.ListProfiles() {
+		fmt.Printf(" - %v\n", profile)
 	}
 	return nil
 }

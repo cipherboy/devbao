@@ -24,11 +24,11 @@ func BuildProfileApplyCommand() *cli.Command {
 
 func RunProfileApplyCommand(cCtx *cli.Context) error {
 	if len(cCtx.Args().Slice()) != 2 {
-		return fmt.Errorf("missing required positional argument: instance name and policy\nUsage: devbao policy apply <name> <position>")
+		return fmt.Errorf("missing required positional argument: instance name and profile\nUsage: devbao profile apply <name> <position>")
 	}
 
 	name := cCtx.Args().First()
-	policy := cCtx.Args().Get(1)
+	profile := cCtx.Args().Get(1)
 
 	node, err := bao.LoadNode(name)
 	if err != nil {
@@ -40,7 +40,7 @@ func RunProfileApplyCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("failed to get client for node %v: %w", name, err)
 	}
 
-	warnings, err := bao.PolicySetup(client, policy)
+	warnings, err := bao.ProfileSetup(client, profile)
 	for index, warning := range warnings {
 		fmt.Fprintf(os.Stderr, " - [warning %d]: %v\n", index, warning)
 	}
