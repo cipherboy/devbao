@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/urfave/cli/v2"
@@ -19,8 +19,10 @@ func main() {
 
 	app.Commands = append(app.Commands, BuildNodeCommand())
 	app.Commands = append(app.Commands, BuildProfileCommand())
+	app.Commands = append(app.Commands, BuildTUICommand())
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
 }

@@ -160,6 +160,12 @@ func (n *Node) Validate() error {
 		n.Token = n.Config.Dev.Token
 	}
 
+	for index, key := range n.UnsealKeys {
+		if key == "" {
+			return fmt.Errorf("blank unseal key at index %d", index)
+		}
+	}
+
 	return n.Config.Validate()
 }
 

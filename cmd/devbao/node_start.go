@@ -53,7 +53,7 @@ func DevServerFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:  "address",
-			Value: "0.0.0.0:8200",
+			Value: "127.0.0.1:8200",
 			Usage: "development mode listener bind address",
 		},
 	}
