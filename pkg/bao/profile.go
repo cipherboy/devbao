@@ -164,6 +164,15 @@ func ProfilePKISealMountSetup(client *api.Client) ([]string, error) {
 		Type: "pki",
 		Config: api.MountConfigInput{
 			MaxLeaseTTL: "2160h", /* 180d */
+			PassthroughRequestHeaders: []string{
+				"If-Modified-Since",
+			},
+			AllowedResponseHeaders: []string{
+				"Replay-Nonce",
+				"Link",
+				"Location",
+				"Last-Modified",
+			},
 		},
 	}); err != nil {
 		return warnings, fmt.Errorf("failed to mount pki intermediate instance: %w", err)
