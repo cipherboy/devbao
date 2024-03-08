@@ -27,7 +27,7 @@ Below are rough sketches of functionality that could potentially be in
 Feel free to comment on the issue tracker if things are of particular
 interest!
 
- - [ ] Nodes
+ - [x] Nodes
    - [x] Start node
      - [x] Auto-initialize
      - [x] Apply profile
@@ -35,11 +35,12 @@ interest!
    - [x] Stop node
    - [x] Resume node
    - [x] Clean nodes
-   - [ ] Transit Seal Config
+   - [s] Transit Seal Config
    - [x] Source environment
    - [x] Access node directory
    - [x] Get/Set unseal keys
    - [x] Get/Set root token (prod)
+   - [x] Set desired connection address.
    - [x] Initialize
    - [x] Seal
    - [X] Unseal
@@ -65,4 +66,4 @@ interest!
    - [ ] OpenLDAP/389-ds
    - [ ] FreeRADIUS
    - [ ] Run node/cluster on container?
- - [ ] TUI?
+ - [-] TUI?

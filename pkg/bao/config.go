@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/openbao/openbao/api"
 )
 
 type Unmarshable interface {
@@ -228,12 +230,50 @@ var (
 	_ Storage = &InmemStorage{}
 )
 
+type Seal interface {
+	ConfigBuilder
+
+	UnsealHelper(client *api.Client) error
+}
+
+type TransitSeal struct {
+	Address   string `json:"address"`
+	Token     string `json:"token"`
+	MountPath string `json:"mount_path"`
+	KeyName   string `json:"key_name"`
+	Disabled  bool   `json:"disabled"`
+}
+
+func (t *TransitSeal) UnsealHelper(client *api.Client) error { return nil }
+
+func (t *TransitSeal) FromInterface(iface map[string]interface{}) error {
+	t.Address = iface["address"].(string)
+	t.Token = iface["token"].(string)
+	t.MountPath = iface["mount_path"].(string)
+	t.KeyName = iface["key_name"].(string)
+	t.Disabled = iface["disabled"].(bool)
+	return nil
+}
+
+func (t *TransitSeal) ToConfig(directory string) (string, error) {
+	config := `seal "transit" {` + "\n"
+	config += `  address = "` + t.Address + `"` + "\n"
+	config += `  token = "` + t.Token + `"` + "\n"
+	config += `  mount_path = "` + t.MountPath + `"` + "\n"
+	config += `  key_name = "` + t.KeyName + `"` + "\n"
+	config += `  disabled = ` + fmt.Sprintf("%v", t.Disabled) + "\n"
+	config += "}\n"
+	return config, nil
+}
+
 type NodeConfig struct {
 	Dev           *DevConfig `json:"dev,omitempty"`
 	ListenerTypes []string   `json:"listener_types,omitempty"`
 	Listeners     []Listener `json:"listeners,omitempty"`
 	StorageType   string     `json:"storage_type,omitempty"`
 	Storage       Storage    `json:"storage,omitempty"`
+	SealTypes     []string   `json:"seal_types,omitempty"`
+	Seals         []Seal     `json:"seals,omitempty"`
 }
 
 func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
@@ -289,6 +329,31 @@ func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
 		}
 	}
 
+	if seals, present := iface["seal_types"]; present && seals != nil {
+		sealsDataRaw := iface["seals"].([]interface{})
+		sealTypesRaw := seals.([]interface{})
+		if len(sealsDataRaw) != len(sealTypesRaw) {
+			return fmt.Errorf("unequal number of seal types (%v) as seals (%v)", len(sealTypesRaw), len(sealsDataRaw))
+		}
+
+		for index, sealTypeRaw := range sealTypesRaw {
+			sealType := sealTypeRaw.(string)
+			n.SealTypes = append(n.SealTypes, sealType)
+
+			switch sealType {
+			case "transit":
+				n.Seals = append(n.Seals, &TransitSeal{})
+			default:
+				return fmt.Errorf("unknown seal type at index %v: %v", index, sealType)
+			}
+
+			sealData := sealsDataRaw[index].(map[string]interface{})
+			if err := n.Seals[index].FromInterface(sealData); err != nil {
+				return fmt.Errorf("error parsing seal data at index %v: %v", index, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -323,6 +388,16 @@ func (n *NodeConfig) Validate() error {
 	case nil:
 	default:
 		return fmt.Errorf("unknown storage type: %T / %v", n.Storage, n.Storage)
+	}
+
+	n.SealTypes = nil
+	for index, seal := range n.Seals {
+		switch seal.(type) {
+		case *TransitSeal:
+			n.SealTypes = append(n.SealTypes, "transit")
+		default:
+			return fmt.Errorf("unknown seal type at index %v: %T / %v", index, seal, seal)
+		}
 	}
 
 	return nil
@@ -387,6 +462,15 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 
 			config += `cluster_addr = "` + scheme + "://" + clusterAddr + `"` + "\n"
 		}
+	}
+
+	for index, seal := range n.Seals {
+		lConfig, err := seal.ToConfig(directory)
+		if err != nil {
+			return "", fmt.Errorf("failed to build seal %d (%#v) to config: %w", index, seal, err)
+		}
+
+		config += lConfig + "\n"
 	}
 
 	if n.Dev == nil {

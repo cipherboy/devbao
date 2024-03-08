@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -131,12 +132,23 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	return nil
 }
 
-func ProdServerFlags() []cli.Flag {
+func UnsealFlags() []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{
+		&cli.BoolFlag{
+			Name:    "unseal",
+			Aliases: []string{"auto-unseal", "u"},
+			Value:   false,
+			Usage:   "Automatically unseal the underlying node; requires --initialize",
+		},
+	}
+}
+
+func ProdServerFlags() []cli.Flag {
+	ret := []cli.Flag{
+		&cli.StringSliceFlag{
 			Name:  "listeners",
-			Value: "tcp:0.0.0.0:8200",
-			Usage: "Bind address of the listener to add, separated by commas for multiple.\nUse `tcp:` to prefix network listener bind addresses or `unix:` to prefix socket listener paths.",
+			Value: cli.NewStringSlice("tcp:0.0.0.0:8200"),
+			Usage: "Bind address of the listener to add; can be specified multiple times. Use\n\t`tcp:` to prefix network listener bind addresses, or\n\t`unix:` to prefix socket listener paths.",
 		},
 		&cli.StringFlag{
 			Name:  "storage",
@@ -149,13 +161,15 @@ func ProdServerFlags() []cli.Flag {
 			Value:   false,
 			Usage:   "Automatically initialize the underlying node, saving unseal keys",
 		},
-		&cli.BoolFlag{
-			Name:    "unseal",
-			Aliases: []string{"auto-unseal", "u"},
-			Value:   false,
-			Usage:   "Automatically unseal the underlying node; requires --initialize",
+		&cli.StringSliceFlag{
+			Name:  "seals",
+			Value: nil,
+			Usage: "URI schemes of seals to add; can be specified multiple times. Use\n\t`http(s)://<TOKEN>@<ADDR>/<MOUNT_PATH>/keys/<KEY_NAME>` for Transit.",
 		},
 	}
+
+	ret = append(ret, UnsealFlags()...)
+	return ret
 }
 
 func BuildNodeStartCommand() *cli.Command {
@@ -218,7 +232,7 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("unknown value for -storage: `%v`; supported values are `raft`, `file`, or `inmem`", storage)
 	}
 
-	listeners := strings.Split(cCtx.String("listeners"), ",")
+	listeners := cCtx.StringSlice("listeners")
 	for index, listener := range listeners {
 		if strings.HasPrefix(listener, "tcp:") {
 			opts = append(opts, &bao.TCPListener{
@@ -231,6 +245,38 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 		} else {
 			return fmt.Errorf("unknown type prefix for -listeners at index %d: `%v`; supported values are `tcp:<bind address>` or `unix:<path>`", index, listener)
 		}
+	}
+
+	seals := cCtx.StringSlice("seals")
+	for index, seal := range seals {
+		url, err := url.Parse(seal)
+		if err != nil {
+			return fmt.Errorf("failed parsing seal's uri at index %d (`%v`): %w", index, seal, err)
+		}
+
+		// Assume transit.
+
+		if url.User == nil || url.User.Username() == "" {
+			return fmt.Errorf("malformed or missing user info: expected token in username for Transit: `%v`", url.User.String())
+		}
+
+		token := url.User.Username()
+		addr := fmt.Sprintf("%v://%v", url.Scheme, url.Host)
+
+		if !strings.Contains(url.Path, "/keys/") {
+			return fmt.Errorf("malformed path: no `/keys/` segment: `%v`", url.Path)
+		}
+
+		parts := strings.Split(url.Path, "/keys/")
+		mount_path := strings.Join(parts[0:len(parts)-1], "/keys")
+		key_name := parts[len(parts)-1]
+
+		opts = append(opts, &bao.TransitSeal{
+			Address:   addr,
+			Token:     token,
+			MountPath: mount_path,
+			KeyName:   key_name,
+		})
 	}
 
 	node, err := bao.BuildNode(name, nType, opts...)

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/cipherboy/devbao/pkg/bao"
 
@@ -19,6 +20,8 @@ func BuildNodeResumeCommand() *cli.Command {
 		Action: RunNodeResumeCommand,
 	}
 
+	c.Flags = append(c.Flags, UnsealFlags()...)
+
 	return c
 }
 
@@ -33,6 +36,8 @@ func RunNodeResumeCommand(cCtx *cli.Context) error {
 		return err
 	}
 
+	unseal := cCtx.Bool("unseal")
+
 	if err := node.Exec.ValidateRunning(); err == nil {
 		fmt.Fprintf(os.Stderr, "node %v / pid %v is already running\n", name, node.Exec.Pid)
 		return nil
@@ -43,5 +48,28 @@ func RunNodeResumeCommand(cCtx *cli.Context) error {
 	}
 
 	fmt.Printf("resuming node %v...\n", name)
-	return node.Resume()
+	if err := node.Resume(); err != nil {
+		return err
+	}
+
+	if unseal {
+		if node.Config.Dev != nil {
+			fmt.Fprintf(os.Stderr, "warning: node %v is a dev mode instance; it was automatically unsealed with fresh seal keys\n", name)
+			return nil
+		}
+
+		if len(node.UnsealKeys) == 0 {
+			return fmt.Errorf("instance was started but had no stored unseal keys so unable to automatically unseal")
+		}
+
+		if _, err := node.Unseal(); err != nil {
+			return fmt.Errorf("failed to unseal node: %w", err)
+		}
+
+		// TODO: use a client request with proper back-off to determine
+		// when the node is responding.
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return nil
 }

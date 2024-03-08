@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 
 	"github.com/openbao/openbao/api"
 )
@@ -69,6 +68,7 @@ type NodeConfigOpt interface{}
 var (
 	_ NodeConfigOpt = Listener(nil)
 	_ NodeConfigOpt = Storage(nil)
+	_ NodeConfigOpt = Seal(nil)
 	_ NodeConfigOpt = &DevConfig{}
 )
 
@@ -133,6 +133,8 @@ func BuildNode(name string, product string, opts ...NodeConfigOpt) (*Node, error
 		switch tOpt := opt.(type) {
 		case Listener:
 			n.Config.Listeners = append(n.Config.Listeners, tOpt)
+		case Seal:
+			n.Config.Seals = append(n.Config.Seals, tOpt)
 		case Storage:
 			n.Config.Storage = tOpt
 		case *DevConfig:
@@ -496,21 +498,17 @@ func (n *Node) Initialize() error {
 		SecretShares:    3,
 		SecretThreshold: 2,
 	}
-	resp, err := client.Sys().Init(req)
-	if err != nil {
-		if !strings.Contains(err.Error(), "not applicable") {
-			return fmt.Errorf("failed to initialize specified node via Shamir's: %w", err)
-		}
 
+	if len(n.Config.Seals) > 0 {
 		req = &api.InitRequest{
 			RecoveryShares:    3,
 			RecoveryThreshold: 2,
 		}
+	}
 
-		resp, err = client.Sys().Init(req)
-		if err != nil {
-			return fmt.Errorf("failed to initialize specified node via auto-unseal: %w", err)
-		}
+	resp, err := client.Sys().Init(req)
+	if err != nil {
+		return fmt.Errorf("failed to initialize specified node: %w", err)
 	}
 
 	if len(resp.KeysB64) != 0 && len(resp.RecoveryKeysB64) != 0 {
