@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -24,6 +25,7 @@ type Node struct {
 	Exec   *ExecEnvironment `json:"exec"`
 	Config NodeConfig       `json:"config"`
 
+	Addr       string   `json:"addr"`
 	Token      string   `json:"token"`
 	UnsealKeys []string `json:"unseal_keys,omitempty"`
 }
@@ -31,6 +33,10 @@ type Node struct {
 func (n *Node) FromInterface(iface map[string]interface{}) error {
 	n.Name = iface["name"].(string)
 	n.Type = iface["type"].(string)
+
+	if _, present := iface["addr"]; present {
+		n.Addr = iface["addr"].(string)
+	}
 
 	if _, present := iface["token"]; present {
 		n.Token = iface["token"].(string)
@@ -166,6 +172,17 @@ func (n *Node) Validate() error {
 		}
 	}
 
+	if n.Exec != nil && n.Addr != "" {
+		// Address is a URL scheme; we wish to know what the underlying
+		// connection address should be.
+		url, err := url.Parse(n.Addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse address (`%v`): %w", n.Addr, err)
+		}
+
+		n.Exec.ConnectAddress = url.Host
+	}
+
 	return n.Config.Validate()
 }
 
@@ -193,6 +210,10 @@ func (n *Node) buildExec() error {
 	addr, _, err := n.Config.GetConnectAddr()
 	if err != nil {
 		return fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
+	}
+
+	if n.Addr != "" {
+		addr = n.Exec.ConnectAddress
 	}
 
 	args, err := n.Config.AddArgs(directory)
@@ -345,6 +366,10 @@ func (n *Node) SaveInstanceConfig(config string) (string, error) {
 }
 
 func (n *Node) GetConnectAddr() (string, error) {
+	if n.Addr != "" {
+		return n.Addr, nil
+	}
+
 	addr, isTls, err := n.Config.GetConnectAddr()
 	if err != nil {
 		return "", fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
@@ -415,6 +440,34 @@ func (n *Node) ValidateToken(token string) error {
 	_, err = client.Sys().ListMounts()
 	if err != nil {
 		return fmt.Errorf("invalid token: %w", err)
+	}
+
+	return nil
+}
+
+func (n *Node) SetAddress(addr string) (bool, error) {
+	n.Addr = addr
+
+	if err := n.Exec.ValidateRunning(); err == nil {
+		if err := n.ValidateAddress(); err != nil {
+			return false, fmt.Errorf("address validation failed: %w", err)
+		}
+
+		return true, n.Validate()
+	}
+
+	return false, n.Validate()
+}
+
+func (n *Node) ValidateAddress() error {
+	client, err := n.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client: %w", err)
+	}
+
+	_, err = client.Sys().InitStatus()
+	if err != nil {
+		return fmt.Errorf("invalid address: %w", err)
 	}
 
 	return nil

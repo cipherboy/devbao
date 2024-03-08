@@ -118,7 +118,7 @@ func (e *ExecEnvironment) WaitAlive(logPath string) error {
 	}
 
 	if !ok {
-		return fmt.Errorf("failed to connect to server's listener; check error logs at %v", logPath)
+		return fmt.Errorf("failed to connect to server's listener (%v); check error logs at %v", e.ConnectAddress, logPath)
 	}
 
 	return nil
