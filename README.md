@@ -35,7 +35,7 @@ interest!
    - [x] Stop node
    - [x] Resume node
    - [x] Clean nodes
-   - [s] Transit Seal Config
+   - [x] Transit Seal Config
    - [x] Source environment
    - [x] Access node directory
    - [x] Get/Set unseal keys
@@ -48,9 +48,10 @@ interest!
    - [x] List profiles
    - [x] Transit Unseal profile
    - [x] PKI profile
-   - [ ] Userpass profile
+   - [x] Userpass profile
    - [x] Remove profiles
    - [ ] Make profiles configurable
+   - [ ] Add script-driven profiles
  - [ ] Clusters
    - [ ] Transit Auto-Unseal key cluster + target cluster
    - [ ] OSS HA cluster

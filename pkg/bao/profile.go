@@ -8,19 +8,28 @@ import (
 	"github.com/openbao/openbao/api"
 )
 
+const (
+	PKIProfile      string = "pki"
+	TransitProfile  string = "transit"
+	UserpassProfile string = "userpass"
+)
+
 func ListProfiles() []string {
 	return []string{
-		"pki",
-		"transit",
+		PKIProfile,
+		TransitProfile,
+		UserpassProfile,
 	}
 }
 
 func ProfileDescription(name string) string {
 	switch name {
-	case "pki":
+	case PKIProfile:
 		return "enable a two-tier root & intermediate CA hierarchy"
-	case "transit":
+	case TransitProfile:
 		return "enable transit for auto-unseal of another cluster"
+	case UserpassProfile:
+		return "enable userpass authentication and sample policy"
 	}
 
 	return ""
@@ -28,10 +37,12 @@ func ProfileDescription(name string) string {
 
 func ProfileSetup(client *api.Client, profile string) ([]string, error) {
 	switch strings.ToLower(profile) {
-	case "pki":
-		return ProfilePKISealMountSetup(client)
-	case "transit":
+	case PKIProfile:
+		return ProfilePKIMountSetup(client)
+	case TransitProfile:
 		return ProfileTransitSealMountSetup(client)
+	case UserpassProfile:
+		return ProfileUserpassMountSetup(client)
 	default:
 		return nil, fmt.Errorf("unknown profile to apply: %v", profile)
 	}
@@ -39,10 +50,12 @@ func ProfileSetup(client *api.Client, profile string) ([]string, error) {
 
 func ProfileRemove(client *api.Client, profile string) ([]string, error) {
 	switch strings.ToLower(profile) {
-	case "pki":
-		return ProfilePKISealMountRemove(client)
-	case "transit":
+	case PKIProfile:
+		return ProfilePKIMountRemove(client)
+	case TransitProfile:
 		return ProfileTransitSealMountRemove(client)
+	case UserpassProfile:
+		return ProfileUserpassMountRemove(client)
 	default:
 		return nil, fmt.Errorf("unknown profile to apply: %v", profile)
 	}
@@ -73,7 +86,7 @@ func ProfileTransitSealMountRemove(client *api.Client) ([]string, error) {
 	return nil, nil
 }
 
-func ProfilePKISealMountSetup(client *api.Client) ([]string, error) {
+func ProfilePKIMountSetup(client *api.Client) ([]string, error) {
 	var warnings []string
 
 	// Orders of operation
@@ -317,13 +330,110 @@ func ProfilePKISealMountSetup(client *api.Client) ([]string, error) {
 	return warnings, nil
 }
 
-func ProfilePKISealMountRemove(client *api.Client) ([]string, error) {
+func ProfilePKIMountRemove(client *api.Client) ([]string, error) {
 	if err := client.Sys().Unmount("pki-int"); err != nil {
 		return nil, fmt.Errorf("failed to remove intermediate CA mount: %w", err)
 	}
 
 	if err := client.Sys().Unmount("pki-root"); err != nil {
 		return nil, fmt.Errorf("failed to remove root CA mount: %w", err)
+	}
+
+	return nil, nil
+}
+
+var adminPolicy = `
+path "*" {
+	capabilities  = ["create", "update", "delete", "read", "patch", "list", "sudo"]
+}
+`
+
+var examplePolicy = `
+path "pki-int/issue/testing" {
+	capabilities = ["update"]
+}
+
+path "pki-int/sign/testing" {
+	capabilities = ["update"]
+}
+
+path "transit/keys/testing-key" {
+	capabilities  = ["create", "update", "delete", "read"]
+}
+
+path "transit/sign/testing-key" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/verify/testing-key" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/encrypt/testing-key" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/decrypt/testing-key" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/hash" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/hash/*" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/random" {
+	capabilities = ["create", "update"]
+}
+
+path "transit/random/*" {
+	capabilities = ["create", "update"]
+}
+`
+
+func ProfileUserpassMountSetup(client *api.Client) ([]string, error) {
+	if err := client.Sys().EnableAuthWithOptions("userpass", &api.EnableAuthOptions{
+		Type: "userpass",
+	}); err != nil {
+		return nil, fmt.Errorf("failed to mount userpass instance: %w", err)
+	}
+
+	if err := client.Sys().PutPolicy("example", examplePolicy); err != nil {
+		return nil, fmt.Errorf("failed to create `example` ACL policy: %w", err)
+	}
+
+	if err := client.Sys().PutPolicy("admin", adminPolicy); err != nil {
+		return nil, fmt.Errorf("failed to create `admin` ACL policy: %w", err)
+	}
+
+	// Userpass doesn't return a result here on account creation.
+	_, err := client.Logical().Write("auth/userpass/users/testing", map[string]interface{}{
+		"password":       "testing",
+		"token_policies": "example",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create userpass `testing` user: %w", err)
+	}
+
+	_, err = client.Logical().Write("auth/userpass/users/admin", map[string]interface{}{
+		"password":       "admin",
+		"token_policies": "admin",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create userpass `admin` user: %w", err)
+	}
+
+	return []string{
+		"authentication available with (u: testing/p: testing) and (u: admin/p: admin)",
+	}, nil
+}
+
+func ProfileUserpassMountRemove(client *api.Client) ([]string, error) {
+	if err := client.Sys().DisableAuth("userpass"); err != nil {
+		return nil, fmt.Errorf("failed to remove userpass mount: %w", err)
 	}
 
 	return nil, nil
