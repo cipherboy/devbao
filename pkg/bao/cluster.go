@@ -97,7 +97,7 @@ func ClusterExists(name string) (bool, error) {
 	return false, nil
 }
 
-func LoadCluster(name string) (*Cluster, error) {
+func LoadClusterUnvalidated(name string) (*Cluster, error) {
 	var cluster Cluster
 	cluster.Name = name
 
@@ -105,11 +105,20 @@ func LoadCluster(name string) (*Cluster, error) {
 		return nil, fmt.Errorf("failed to read cluster (%v) configuration: %w", name, err)
 	}
 
+	return &cluster, nil
+}
+
+func LoadCluster(name string) (*Cluster, error) {
+	cluster, err := LoadClusterUnvalidated(name)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := cluster.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid cluster (%v) configuration: %w", name, err)
 	}
 
-	return &cluster, nil
+	return cluster, nil
 }
 
 func (c *Cluster) Validate() error {
@@ -417,4 +426,45 @@ func (c *Cluster) RemoveNodeHACluster(node *Node) error {
 	}
 
 	return nil
+}
+
+func (c *Cluster) Clean(force bool) error {
+	for index, name := range c.Nodes {
+		node, err := LoadNode(name)
+		if err != nil {
+			if strings.Contains(err.Error(), "no such file or directory") {
+				continue
+			}
+
+			// Some other unknown error.
+			if !force {
+				return fmt.Errorf("failed to load node %d / %v to determine state: %w", index, name, err)
+			} else {
+				node = &Node{
+					Name: name,
+				}
+			}
+		}
+
+		if node.Exec != nil {
+			if err := node.Exec.ValidateRunning(); err == nil {
+				err := node.Kill()
+				if err != nil {
+					if !force {
+						return fmt.Errorf("failed to stop node prior to removal: %w", err)
+					}
+				}
+			}
+		}
+
+		err = node.Clean(force)
+		if err != nil {
+			if !force {
+				return fmt.Errorf("failed to clean node %d / %v: %w", index, name, err)
+			}
+		}
+	}
+
+	directory := c.GetDirectory()
+	return os.RemoveAll(directory)
 }

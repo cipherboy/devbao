@@ -114,7 +114,7 @@ func NodeExists(name string) (bool, error) {
 	return false, nil
 }
 
-func LoadNode(name string) (*Node, error) {
+func LoadNodeUnvalidated(name string) (*Node, error) {
 	var node Node
 	node.Name = name
 
@@ -122,11 +122,20 @@ func LoadNode(name string) (*Node, error) {
 		return nil, fmt.Errorf("failed to read node (%v) configuration: %w", name, err)
 	}
 
+	return &node, nil
+}
+
+func LoadNode(name string) (*Node, error) {
+	node, err := LoadNodeUnvalidated(name)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := node.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid node (%v) configuration: %w", name, err)
 	}
 
-	return &node, nil
+	return node, nil
 }
 
 func BuildNode(name string, product string, opts ...NodeConfigOpt) (*Node, error) {

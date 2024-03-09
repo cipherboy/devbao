@@ -57,6 +57,7 @@ interest!
    - [x] List clusters
    - [x] Join node to HA cluster
    - [x] Remove node from HA cluster
+   - [x] Clean cluster
    - [ ] Cluster profiles
      - [ ] Three-node HA cluster
      - [ ] Transit Auto-Unseal key cluster + target cluster
