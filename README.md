@@ -59,7 +59,7 @@ interest!
    - [x] Remove node from HA cluster
    - [x] Clean cluster
    - [ ] Cluster profiles
-     - [ ] Three-node HA cluster
+     - [x] Three-node HA cluster
      - [ ] Transit Auto-Unseal key cluster + target cluster
  - [ ] benchmark-vault integration
  - [ ] Auto-fetch release binaries
