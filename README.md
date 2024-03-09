@@ -54,7 +54,7 @@ interest!
    - [ ] Add script-driven profiles
  - [ ] Clusters
    - [x] Build Cluster
-   - [ ] List clusters
+   - [x] List clusters
    - [ ] Join node to cluster
    - [ ] Cluster profiles
      - [ ] Transit Auto-Unseal key cluster + target cluster

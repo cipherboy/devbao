@@ -92,6 +92,21 @@ func ClusterExists(name string) (bool, error) {
 	return false, nil
 }
 
+func LoadCluster(name string) (*Cluster, error) {
+	var cluster Cluster
+	cluster.Name = name
+
+	if err := cluster.LoadConfig(); err != nil {
+		return nil, fmt.Errorf("failed to read cluster (%v) configuration: %w", name, err)
+	}
+
+	if err := cluster.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid cluster (%v) configuration: %w", name, err)
+	}
+
+	return &cluster, nil
+}
+
 func (c *Cluster) Validate() error {
 	if c.Name == "" {
 		return fmt.Errorf("missing cluster name")
@@ -109,6 +124,45 @@ func (c *Cluster) Validate() error {
 
 		if node.Cluster != c.Name {
 			return fmt.Errorf("node (%d / %v) not listed in cluster; listed in `%v`", index, name, node.Cluster)
+		}
+	}
+
+	return nil
+}
+
+func (c *Cluster) LoadConfig() error {
+	directory := c.GetDirectory()
+	path := filepath.Join(directory, ClusterJsonName)
+	configFile, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to open config file (`%v`) for reading: %w", path, err)
+	}
+
+	defer configFile.Close()
+
+	// We need to unmarshal to an intermediate interface so that we can figure
+	// out the correct types for the Storage and Listeners.
+	var cfg map[string]interface{}
+
+	if err := json.NewDecoder(configFile).Decode(&cfg); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if err := c.FromInterface(cfg); err != nil {
+		return fmt.Errorf("failed to translate config: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Cluster) FromInterface(iface map[string]interface{}) error {
+	c.Name = iface["name"].(string)
+	c.Type = iface["type"].(string)
+
+	if nodesRaw, ok := iface["nodes"].([]interface{}); ok {
+		c.Nodes = nil
+		for _, nodeRaw := range nodesRaw {
+			c.Nodes = append(c.Nodes, nodeRaw.(string))
 		}
 	}
 

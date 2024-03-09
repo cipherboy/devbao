@@ -273,6 +273,10 @@ func (n *Node) Kill() error {
 			return fmt.Errorf("error loading node from disk while killing: %w", err)
 		}
 
+		if disk.Exec == nil {
+			return fmt.Errorf("node has no execution state: %w", err)
+		}
+
 		return disk.Exec.Kill()
 	}
 
@@ -280,6 +284,33 @@ func (n *Node) Kill() error {
 }
 
 func (n *Node) Clean() error {
+	if n.Cluster != "" {
+		cluster, err := LoadCluster(n.Cluster)
+		if err != nil {
+			return fmt.Errorf("failed to load node's cluster (`%v`): %w", n.Cluster, err)
+		}
+
+		nodeIndex := -1
+		for index, name := range cluster.Nodes {
+			if name == n.Name {
+				nodeIndex = index
+				break
+			}
+		}
+
+		if nodeIndex != -1 {
+			nodesBefore := cluster.Nodes[0:nodeIndex]
+			nodesAfter := cluster.Nodes[nodeIndex+1:]
+			cluster.Nodes = append(nodesBefore, nodesAfter...)
+
+			if err := cluster.SaveConfig(); err != nil {
+				return fmt.Errorf("failed to save cluster (`%v`) after node removal: %w", n.Cluster, err)
+			}
+
+			n.Cluster = ""
+		}
+	}
+
 	directory := n.GetDirectory()
 	return os.RemoveAll(directory)
 }
