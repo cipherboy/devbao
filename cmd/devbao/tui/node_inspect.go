@@ -262,7 +262,7 @@ func (m *nodeInspect) DoClean() tea.Cmd {
 		}
 	}
 
-	if err := m.Node.Clean(); err != nil {
+	if err := m.Node.Clean(false); err != nil {
 		m.Message = fmt.Sprintf("failed to clean node: %w", err)
 		return nil
 	}

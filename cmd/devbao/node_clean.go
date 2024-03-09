@@ -13,9 +13,17 @@ import (
 func BuildNodeCleanCommand() *cli.Command {
 	c := &cli.Command{
 		Name:      "clean",
-		Aliases:   []string{"c"},
+		Aliases:   []string{"remove", "c"},
 		ArgsUsage: "<name>",
 		Usage:     "remove the named instance",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "force",
+				Aliases: []string{"f"},
+				Value:   false,
+				Usage:   "force removal of node",
+			},
+		},
 
 		Action: RunNodeCleanCommand,
 	}
@@ -28,6 +36,8 @@ func RunNodeCleanCommand(cCtx *cli.Context) error {
 		return fmt.Errorf("missing required positional argument: <name>, the name of the instance to remove")
 	}
 
+	force := cCtx.Bool("force")
+
 	name := cCtx.Args().First()
 	node, err := bao.LoadNode(name)
 	if err != nil {
@@ -37,16 +47,24 @@ func RunNodeCleanCommand(cCtx *cli.Context) error {
 		}
 
 		// Some other unknown error.
-		return fmt.Errorf("failed to load node to determine state: %w", err)
+		if !force {
+			return fmt.Errorf("failed to load node to determine state: %w", err)
+		} else {
+			node = &bao.Node{
+				Name: name,
+			}
+		}
 	}
 
-	if err := node.Exec.ValidateRunning(); err == nil {
-		fmt.Fprintf(os.Stderr, "node %v / pid %v is running, stopping...\n", name, node.Exec.Pid)
-		if err := node.Kill(); err != nil {
-			return fmt.Errorf("failed to stop node prior to removal: %w", err)
+	if node.Exec != nil {
+		if err := node.Exec.ValidateRunning(); err == nil {
+			fmt.Fprintf(os.Stderr, "node %v / pid %v is running, stopping...\n", name, node.Exec.Pid)
+			if err := node.Kill(); err != nil {
+				return fmt.Errorf("failed to stop node prior to removal: %w", err)
+			}
 		}
 	}
 
 	fmt.Printf("cleaning node %v...\n", name)
-	return node.Clean()
+	return node.Clean(force)
 }

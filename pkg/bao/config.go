@@ -482,6 +482,11 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 		}
 
 		config += `plugin_directory = "` + pluginDir + `"` + "\n"
+
+		// Enable sys/raw
+		config += "raw_storage_endpoint = true\n"
+		config += "introspection_endpoint = true\n"
+		config += `log_level = "trace"` + "\n"
 	}
 
 	return config, nil

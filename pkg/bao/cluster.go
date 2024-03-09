@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/openbao/openbao/api"
 )
 
@@ -208,20 +211,27 @@ func (c *Cluster) SaveConfig() error {
 }
 
 func (c *Cluster) GetLeader() (*Node, *api.Client, error) {
+	var errors *multierror.Error
 	for index, name := range c.Nodes {
 		node, err := LoadNode(name)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error loading node %d / %v: %w", index, name, err)
+			err = fmt.Errorf("error loading node %d / %v: %w", index, name, err)
+			errors = multierror.Append(errors, err)
+			continue
 		}
 
 		client, err := node.GetClient()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting client for node %d / %v: %w", index, name, err)
+			err = fmt.Errorf("error getting client for node %d / %v: %w", index, name, err)
+			errors = multierror.Append(errors, err)
+			continue
 		}
 
 		resp, err := client.Sys().Leader()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting leadership status for node %d / %v: %w", index, name, err)
+			err = fmt.Errorf("error getting leadership status for node %d / %v: %w", index, name, err)
+			errors = multierror.Append(errors, err)
+			continue
 		}
 
 		if resp.IsSelf {
@@ -229,7 +239,8 @@ func (c *Cluster) GetLeader() (*Node, *api.Client, error) {
 		}
 	}
 
-	return nil, nil, fmt.Errorf("no leader found on cluster; %v nodes", len(c.Nodes))
+	err := fmt.Errorf("no leader found on cluster; %v nodes; got the following errors: %w", len(c.Nodes), errors)
+	return nil, nil, err
 }
 
 func (c *Cluster) JoinNodeHACluster(node *Node) error {
@@ -281,15 +292,128 @@ func (c *Cluster) JoinNodeHACluster(node *Node) error {
 	}
 
 	if !resp.Joined {
+		time.Sleep(500 * time.Millisecond)
+
 		// Attempt to unseal using stored shamir's keys.
 		if _, err := node.Unseal(); err != nil {
 			return fmt.Errorf("failed unsealing follower node %v: %w", node.Name, err)
 		}
+
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	c.Nodes = append(c.Nodes, node.Name)
 	if err := c.SaveConfig(); err != nil {
 		return fmt.Errorf("failed saving updated cluster state: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Cluster) RemoveNodeHACluster(node *Node) error {
+	_, leaderClient, err := c.GetLeader()
+	if err != nil {
+		return fmt.Errorf("error finding leader: %w", err)
+	}
+
+	nodeAddr, err := node.GetConnectAddr()
+	if err != nil {
+		return fmt.Errorf("failed to get node's address: %w", err)
+	}
+
+	// Inferring the node_id from the API address is difficult; we need to
+	// fetch the ha-status to find the API address->cluster address mappings
+	// and then find the server with the given cluster address.
+	statusResp, err := leaderClient.Logical().Read("sys/ha-status")
+	if err != nil {
+		return fmt.Errorf("error reading raft configuration from node %v: %w", node.Name, err)
+	}
+
+	clusterAddr := ""
+	nodes := statusResp.Data["nodes"].([]interface{})
+	for _, nodeRaw := range nodes {
+		node := nodeRaw.(map[string]interface{})
+		apiAddr := node["api_address"].(string)
+		if apiAddr == nodeAddr {
+			clusterAddr = node["cluster_address"].(string)
+			break
+		}
+	}
+
+	if clusterAddr == "" {
+		// This node might've manually been removed from the cluster or never
+		// really joined to it.
+		nodeIndex := -1
+		for index, name := range c.Nodes {
+			if name == node.Name {
+				nodeIndex = index
+				break
+			}
+		}
+
+		if nodeIndex != -1 {
+			nodesBefore := c.Nodes[0:nodeIndex]
+			nodesAfter := c.Nodes[nodeIndex+1:]
+			c.Nodes = append(nodesBefore, nodesAfter...)
+
+			if err := c.SaveConfig(); err != nil {
+				return fmt.Errorf("failed to save cluster %v after node removal: %w", c.Name, err)
+			}
+		}
+
+		return nil
+
+	}
+
+	cfgResp, err := leaderClient.Logical().Read("sys/storage/raft/configuration")
+	if err != nil {
+		return fmt.Errorf("error reading raft configuration from node %v: %w", node.Name, err)
+	}
+
+	raftId := ""
+	cfg := cfgResp.Data["config"].(map[string]interface{})
+	servers := cfg["servers"].([]interface{})
+	for _, serverRaw := range servers {
+		server := serverRaw.(map[string]interface{})
+		addr := server["address"].(string)
+		if strings.Contains(clusterAddr, addr) {
+			raftId = server["node_id"].(string)
+			break
+		}
+	}
+
+	if raftId == "" {
+		return fmt.Errorf("could not find node %v's raft ID based on sys/storage/raft/configuration response", node.Name)
+	}
+
+	_, err = leaderClient.Logical().Write("sys/storage/raft/remove-peer", map[string]interface{}{
+		"server_id": raftId,
+	})
+	if err != nil {
+		return fmt.Errorf("failed removing node %v from cluster: %w", node.Name, err)
+	}
+
+	node.Cluster = ""
+	if err := node.SaveConfig(); err != nil {
+		return fmt.Errorf("failed saving updated state for joined node %v: %w", node.Name, err)
+	}
+
+	nodeIndex := -1
+	for index, name := range c.Nodes {
+		if name == node.Name {
+			nodeIndex = index
+			break
+		}
+	}
+
+	if nodeIndex != -1 {
+		nodesBefore := c.Nodes[0:nodeIndex]
+		nodesAfter := c.Nodes[nodeIndex+1:]
+		c.Nodes = append(nodesBefore, nodesAfter...)
+
+		if err := c.SaveConfig(); err != nil {
+			return fmt.Errorf("failed to save cluster %v after node removal: %w", c.Name, err)
+		}
 	}
 
 	return nil

@@ -259,7 +259,7 @@ func (n *Node) buildExec() error {
 func (n *Node) Start() error {
 	_ = n.Kill()
 
-	if err := n.Clean(); err != nil {
+	if err := n.Clean(false); err != nil {
 		return fmt.Errorf("failed to clean up existing node: %w", err)
 	}
 
@@ -283,31 +283,17 @@ func (n *Node) Kill() error {
 	return n.Exec.Kill()
 }
 
-func (n *Node) Clean() error {
+func (n *Node) Clean(force bool) error {
 	if n.Cluster != "" {
 		cluster, err := LoadCluster(n.Cluster)
-		if err != nil {
+		if err != nil && !force {
 			return fmt.Errorf("failed to load node's cluster (`%v`): %w", n.Cluster, err)
 		}
 
-		nodeIndex := -1
-		for index, name := range cluster.Nodes {
-			if name == n.Name {
-				nodeIndex = index
-				break
+		if cluster != nil {
+			if err := cluster.RemoveNodeHACluster(n); err != nil && !force {
+				return fmt.Errorf("failed to remove node (`%v`) from cluster (`%v`): %w", n.Name, cluster.Name, err)
 			}
-		}
-
-		if nodeIndex != -1 {
-			nodesBefore := cluster.Nodes[0:nodeIndex]
-			nodesAfter := cluster.Nodes[nodeIndex+1:]
-			cluster.Nodes = append(nodesBefore, nodesAfter...)
-
-			if err := cluster.SaveConfig(); err != nil {
-				return fmt.Errorf("failed to save cluster (`%v`) after node removal: %w", n.Cluster, err)
-			}
-
-			n.Cluster = ""
 		}
 	}
 
