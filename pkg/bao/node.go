@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	NODE_JSON_NAME       = "node.json"
-	INSTANCE_CONFIG_NAME = "config.hcl"
+	NodeJsonName       = "node.json"
+	InstanceConfigName = "config.hcl"
 )
 
 type Node struct {
@@ -27,6 +27,8 @@ type Node struct {
 	Addr       string   `json:"addr"`
 	Token      string   `json:"token"`
 	UnsealKeys []string `json:"unseal_keys,omitempty"`
+
+	Cluster string `json:"cluster,omitempty"`
 }
 
 func (n *Node) FromInterface(iface map[string]interface{}) error {
@@ -39,6 +41,10 @@ func (n *Node) FromInterface(iface map[string]interface{}) error {
 
 	if _, present := iface["token"]; present {
 		n.Token = iface["token"].(string)
+	}
+
+	if _, present := iface["cluster"]; present {
+		n.Cluster = iface["cluster"].(string)
 	}
 
 	if unsealKeysRaw, ok := iface["unseal_keys"].([]interface{}); ok {
@@ -144,8 +150,8 @@ func BuildNode(name string, product string, opts ...NodeConfigOpt) (*Node, error
 		}
 	}
 
-	if err := n.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid node configuration: %w", err)
+	if err := n.SaveConfig(); err != nil {
+		return nil, fmt.Errorf("failed saving initial configuration: %w", err)
 	}
 
 	return n, nil
@@ -299,13 +305,13 @@ func (n *Node) Resume() error {
 		return err
 	}
 
-	// Now, persist node configuration.
+	// Update node configuration.
 	return n.SaveConfig()
 }
 
 func (n *Node) LoadConfig() error {
 	directory := n.GetDirectory()
-	path := filepath.Join(directory, NODE_JSON_NAME)
+	path := filepath.Join(directory, NodeJsonName)
 	configFile, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open config file (`%v`) for reading: %w", path, err)
@@ -334,7 +340,11 @@ func (n *Node) SaveConfig() error {
 	}
 
 	directory := n.GetDirectory()
-	path := filepath.Join(directory, NODE_JSON_NAME)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return fmt.Errorf("failed to create node directory (%v): %w", directory, err)
+	}
+
+	path := filepath.Join(directory, NodeJsonName)
 	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open config file (`%v`) for writing: %w", path, err)
@@ -351,7 +361,7 @@ func (n *Node) SaveConfig() error {
 
 func (n *Node) SaveInstanceConfig(config string) (string, error) {
 	directory := n.GetDirectory()
-	path := filepath.Join(directory, INSTANCE_CONFIG_NAME)
+	path := filepath.Join(directory, InstanceConfigName)
 
 	configFile, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {

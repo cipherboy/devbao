@@ -10,13 +10,14 @@ import (
 func main() {
 	app := &cli.App{
 		Name:                   "devbao",
-		Usage:                  "manage and launch OpenBao (HashiCorp Vault) instances",
+		Usage:                  "manage and launch OpenBao (or HashiCorp Vault) instances",
 		Version:                "0.0.1",
 		UseShortOptionHandling: true,
 		EnableBashCompletion:   true,
 		Suggest:                true,
 	}
 
+	app.Commands = append(app.Commands, BuildClusterCommand())
 	app.Commands = append(app.Commands, BuildNodeCommand())
 	app.Commands = append(app.Commands, BuildProfileCommand())
 	app.Commands = append(app.Commands, BuildTUICommand())

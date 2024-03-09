@@ -53,11 +53,15 @@ interest!
    - [ ] Make profiles configurable
    - [ ] Add script-driven profiles
  - [ ] Clusters
-   - [ ] Transit Auto-Unseal key cluster + target cluster
-   - [ ] OSS HA cluster
-    - [ ] Start fresh 3-node cluster
-    - [ ] Add HA from existing node
-    - [ ] Add node
+   - [x] Build Cluster
+   - [ ] List clusters
+   - [ ] Join node to cluster
+   - [ ] Cluster profiles
+     - [ ] Transit Auto-Unseal key cluster + target cluster
+     - [ ] OSS HA cluster
+      - [ ] Start fresh 3-node cluster
+      - [ ] Add HA from existing node
+      - [ ] Add node
  - [ ] benchmark-vault integration
  - [ ] Auto-fetch release binaries
  - [ ] Ecosystem integrations

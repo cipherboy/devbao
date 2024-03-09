@@ -8,7 +8,7 @@ func BuildNodeCommand() *cli.Command {
 	c := &cli.Command{
 		Name:    "node",
 		Aliases: []string{"nodes", "n"},
-		Usage:   "commands for managing non-clustered nodes",
+		Usage:   "commands for managing individual nodes",
 	}
 
 	c.Subcommands = append(c.Subcommands, BuildNodeCleanCommand())

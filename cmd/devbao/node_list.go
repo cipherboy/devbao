@@ -61,7 +61,12 @@ func RunNodeListCommand(cCtx *cli.Context) error {
 			continue
 		}
 
-		lines = append(lines, fmt.Sprintf(" - %v (%v)", name, state))
+		cluster := ""
+		if node.Cluster != "" {
+			cluster = fmt.Sprintf(" [cluster: %v]", node.Cluster)
+		}
+
+		lines = append(lines, fmt.Sprintf(" - %v (%v)%v", name, state, cluster))
 	}
 
 	fmt.Println(strings.Join(lines, "\n"))
