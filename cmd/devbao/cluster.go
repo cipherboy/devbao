@@ -12,6 +12,7 @@ func BuildClusterCommand() *cli.Command {
 	}
 
 	c.Subcommands = append(c.Subcommands, BuildClusterBuildCommand())
+	c.Subcommands = append(c.Subcommands, BuildClusterJoinCommand())
 	c.Subcommands = append(c.Subcommands, BuildClusterListCommand())
 
 	return c

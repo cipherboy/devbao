@@ -55,13 +55,10 @@ interest!
  - [ ] Clusters
    - [x] Build Cluster
    - [x] List clusters
-   - [ ] Join node to cluster
+   - [x] Join node to HA cluster
    - [ ] Cluster profiles
+     - [ ] Three-node HA cluster
      - [ ] Transit Auto-Unseal key cluster + target cluster
-     - [ ] OSS HA cluster
-      - [ ] Start fresh 3-node cluster
-      - [ ] Add HA from existing node
-      - [ ] Add node
  - [ ] benchmark-vault integration
  - [ ] Auto-fetch release binaries
  - [ ] Ecosystem integrations

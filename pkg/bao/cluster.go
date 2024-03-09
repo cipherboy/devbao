@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"github.com/openbao/openbao/api"
 )
 
 const (
@@ -200,6 +202,94 @@ func (c *Cluster) SaveConfig() error {
 
 	if err := json.NewEncoder(configFile).Encode(c); err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Cluster) GetLeader() (*Node, *api.Client, error) {
+	for index, name := range c.Nodes {
+		node, err := LoadNode(name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error loading node %d / %v: %w", index, name, err)
+		}
+
+		client, err := node.GetClient()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting client for node %d / %v: %w", index, name, err)
+		}
+
+		resp, err := client.Sys().Leader()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting leadership status for node %d / %v: %w", index, name, err)
+		}
+
+		if resp.IsSelf {
+			return node, client, nil
+		}
+	}
+
+	return nil, nil, fmt.Errorf("no leader found on cluster; %v nodes", len(c.Nodes))
+}
+
+func (c *Cluster) JoinNodeHACluster(node *Node) error {
+	leaderNode, leaderClient, err := c.GetLeader()
+	if err != nil {
+		return fmt.Errorf("error finding leader: %w", err)
+	}
+
+	nodeClient, err := node.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client for node to add: %w", err)
+	}
+
+	if len(leaderNode.Config.Seals) != len(node.Config.Seals) {
+		return fmt.Errorf("mismatched seal configuration counts between %v and %v; cannot join existing cluster -- ensure seals are configured correctly and retry", leaderNode.Name, node.Name)
+	}
+
+	for index, seal := range leaderNode.Config.Seals {
+		leaderConfig, err := seal.ToConfig("/")
+		if err != nil {
+			return fmt.Errorf("error building seal config %d for %v: %w", index, leaderNode.Name, err)
+		}
+
+		followerConfig, err := node.Config.Seals[index].ToConfig("/")
+		if err != nil {
+			return fmt.Errorf("error building seal config %d for %v: %w", index, node.Name, err)
+		}
+
+		if leaderConfig != followerConfig {
+			return fmt.Errorf("mismatched seal configuration counts between %v and %v; cannot join existing cluster -- ensure seals are configured correctly and retry", leaderNode.Name, node.Name)
+		}
+	}
+
+	resp, err := nodeClient.Sys().RaftJoin(&api.RaftJoinRequest{
+		LeaderAPIAddr: leaderClient.Address(),
+		Retry:         true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed joining node %v to cluster %v / leader %v: %w", node.Name, c.Name, leaderNode.Name, err)
+	}
+
+	// Update this node's token to mirror the leadership.
+	node.Token = leaderNode.Token
+	node.UnsealKeys = leaderNode.UnsealKeys
+	node.Cluster = c.Name
+
+	if err := node.SaveConfig(); err != nil {
+		return fmt.Errorf("failed saving updated state for joined node %v: %w", node.Name, err)
+	}
+
+	if !resp.Joined {
+		// Attempt to unseal using stored shamir's keys.
+		if _, err := node.Unseal(); err != nil {
+			return fmt.Errorf("failed unsealing follower node %v: %w", node.Name, err)
+		}
+	}
+
+	c.Nodes = append(c.Nodes, node.Name)
+	if err := c.SaveConfig(); err != nil {
+		return fmt.Errorf("failed saving updated cluster state: %w", err)
 	}
 
 	return nil
