@@ -27,7 +27,7 @@ func (i nodeItem) Description() string {
 		mode = "[dev-mode] "
 	}
 
-	addr, err := i.Node.GetConnectAddr()
+	addr, ca, err := i.Node.GetConnectAddr()
 	if err != nil {
 		addr = fmt.Sprintf("[err: %v]", err)
 	}
@@ -41,7 +41,11 @@ func (i nodeItem) Description() string {
 		token = "\nVAULT_TOKEN=" + token
 	}
 
-	desc := fmt.Sprintf("%v%v%v", mode, addr, token)
+	if ca != "" {
+		ca = "\nVAULT_CACERT=" + ca
+	}
+
+	desc := fmt.Sprintf("%v%v%v%v", mode, addr, token, ca)
 
 	if !i.Running {
 		desc = "[stopped] " + desc

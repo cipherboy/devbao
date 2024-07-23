@@ -325,7 +325,7 @@ func (c *Cluster) RemoveNodeHACluster(node *Node) error {
 		return fmt.Errorf("error finding leader: %w", err)
 	}
 
-	nodeAddr, err := node.GetConnectAddr()
+	nodeAddr, _, err := node.GetConnectAddr()
 	if err != nil {
 		return fmt.Errorf("failed to get node's address: %w", err)
 	}

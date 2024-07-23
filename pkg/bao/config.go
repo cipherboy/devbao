@@ -29,6 +29,7 @@ type ArgBuilder interface {
 }
 
 const (
+	TLS_CA_NAME    = "ca.pem"
 	TLS_CERTS_NAME = "fullchain.pem"
 	TLS_KEY_NAME   = "leaf-key.pem"
 )
@@ -38,7 +39,13 @@ type TLSConfig struct {
 	Key          string   `json:"key"`
 }
 
-func (t *TLSConfig) Write(certPath string, keyPath string) error {
+func (t *TLSConfig) Write(caPath string, certPath string, keyPath string) error {
+	caFile, err := os.OpenFile(caPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to open cas to path (%v): %w", caPath, err)
+	}
+	defer caFile.Close()
+
 	certFile, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open certs to path (%v): %w", certPath, err)
@@ -48,6 +55,13 @@ func (t *TLSConfig) Write(certPath string, keyPath string) error {
 	for index, cert := range t.Certificates {
 		if _, err := io.WriteString(certFile, strings.TrimSpace(cert)+"\n"); err != nil {
 			return fmt.Errorf("failed to write cert %d to path (%v): %w", index, certPath, err)
+		}
+
+		// Write the last certificate as the CA certificate.
+		if index == len(t.Certificates)-1 {
+			if _, err := io.WriteString(caFile, strings.TrimSpace(cert)+"\n"); err != nil {
+				return fmt.Errorf("failed to write cert %d to path (%v): %w", index, certPath, err)
+			}
 		}
 	}
 
@@ -110,9 +124,10 @@ func (t *TCPListener) ToConfig(directory string) (string, error) {
 	if t.TLS == nil {
 		config += `  tls_disable = true` + "\n"
 	} else {
+		caPath := filepath.Join(directory, TLS_CA_NAME)
 		certPath := filepath.Join(directory, TLS_CERTS_NAME)
 		keyPath := filepath.Join(directory, TLS_KEY_NAME)
-		if err := t.TLS.Write(certPath, keyPath); err != nil {
+		if err := t.TLS.Write(caPath, certPath, keyPath); err != nil {
 			return "", fmt.Errorf("failed to persist TLS configuration: %w", err)
 		}
 	}
@@ -136,8 +151,18 @@ func getConnectionAddr(address string) (string, error) {
 	return fmt.Sprintf("%v:%v", host, port), nil
 }
 
-func (t *TCPListener) GetConnectAddr() (string, error) {
-	return getConnectionAddr(t.Address)
+func (t *TCPListener) GetConnectAddr(directory string) (string, string, error) {
+	addr, err := getConnectionAddr(t.Address)
+	if err != nil {
+		return "", "", err
+	}
+
+	var ca string
+	if t.TLS != nil {
+		ca = filepath.Join(directory, TLS_CA_NAME)
+	}
+
+	return addr, ca, nil
 }
 
 type UnixListener struct {
@@ -156,13 +181,13 @@ func (u *UnixListener) ToConfig(directory string) (string, error) {
 	return config, nil
 }
 
-func (u *UnixListener) GetConnectAddr() (string, error) {
-	return "", fmt.Errorf("unix socket cannot be connected to via tcp")
+func (u *UnixListener) GetConnectAddr(directory string) (string, string, error) {
+	return "", "", fmt.Errorf("unix socket cannot be connected to via tcp")
 }
 
 type Listener interface {
 	ConfigBuilder
-	GetConnectAddr() (string, error)
+	GetConnectAddr(string) (string, string, error)
 }
 
 var (
@@ -426,7 +451,7 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 		}
 	}
 
-	apiAddr, tls, err := n.GetConnectAddr()
+	apiAddr, tls, _, err := n.GetConnectAddr(directory)
 	if err != nil {
 		return "", fmt.Errorf("failed to infer connection address: %w\n\tuse a non-raft storage backend or add a tcp listener to this cluster", err)
 	}
@@ -492,9 +517,9 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 	return config, nil
 }
 
-func (n *NodeConfig) GetConnectAddr() (string, bool, error) {
+func (n *NodeConfig) GetConnectAddr(directory string) (string, bool, string, error) {
 	if err := n.Validate(); err != nil {
-		return "", false, err
+		return "", false, "", err
 	}
 
 	if n.Dev != nil {
@@ -503,20 +528,26 @@ func (n *NodeConfig) GetConnectAddr() (string, bool, error) {
 			address = "127.0.0.1:8200"
 		}
 		host, err := getConnectionAddr(address)
-		return host, false, err
+
+		var rootCAPath = ""
+		if n.Dev.Tls {
+			rootCAPath = filepath.Join(directory, "vault-ca.pem")
+		}
+		return host, n.Dev.Tls, rootCAPath, err
 	}
 
 	var lastErr error
 	for _, listener := range n.Listeners {
 		if tcp, ok := listener.(*TCPListener); ok {
 			var addr string
-			if addr, lastErr = tcp.GetConnectAddr(); lastErr == nil {
-				return addr, tcp.TLS != nil, nil
+			var ca string
+			if addr, ca, lastErr = tcp.GetConnectAddr(directory); lastErr == nil {
+				return addr, tcp.TLS != nil, ca, nil
 			}
 		}
 	}
 
-	return "", false, fmt.Errorf("unknown connection address for configuration; last error: %w", lastErr)
+	return "", false, "", fmt.Errorf("unknown connection address for configuration; last error: %w", lastErr)
 }
 
 func (n *NodeConfig) AddArgs(directory string) ([]string, error) {
@@ -537,15 +568,21 @@ func (n *NodeConfig) AddArgs(directory string) ([]string, error) {
 type DevConfig struct {
 	Token   string `json:"token,omitempty"`
 	Address string `json:"address,omitempty"`
+	Tls     bool   `json:"tls,omitempty"`
 }
 
 func (d *DevConfig) FromInterface(iface map[string]interface{}) error {
 	d.Token = iface["token"].(string)
 	d.Address = iface["address"].(string)
+
+	if _, present := iface["tls"]; present {
+		d.Tls = iface["tls"].(bool)
+	}
+
 	return nil
 }
 
-func (d *DevConfig) AddArgs(_ string) ([]string, error) {
+func (d *DevConfig) AddArgs(directory string) ([]string, error) {
 	args := []string{"-dev"}
 	if d.Token != "" {
 		args = append(args, fmt.Sprintf("-dev-root-token-id=%s", d.Token))
@@ -553,6 +590,11 @@ func (d *DevConfig) AddArgs(_ string) ([]string, error) {
 
 	if d.Address != "" {
 		args = append(args, fmt.Sprintf("-dev-listen-address=%s", d.Address))
+	}
+
+	if d.Tls {
+		args = append(args, "-dev-tls")
+		args = append(args, fmt.Sprintf("-dev-tls-cert-dir=%s", directory))
 	}
 
 	return args, nil

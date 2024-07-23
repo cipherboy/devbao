@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/openbao/openbao/api"
 )
@@ -25,6 +26,7 @@ type Node struct {
 	Config NodeConfig       `json:"config"`
 
 	Addr       string   `json:"addr"`
+	Ca         string   `json:"ca"`
 	Token      string   `json:"token"`
 	UnsealKeys []string `json:"unseal_keys,omitempty"`
 
@@ -37,6 +39,10 @@ func (n *Node) FromInterface(iface map[string]interface{}) error {
 
 	if _, present := iface["addr"]; present {
 		n.Addr = iface["addr"].(string)
+	}
+
+	if _, present := iface["ca"]; present {
+		n.Ca = iface["ca"].(string)
 	}
 
 	if _, present := iface["token"]; present {
@@ -224,7 +230,7 @@ func (n *Node) buildExec() error {
 		return fmt.Errorf("failed to create node directory (%v): %w", directory, err)
 	}
 
-	addr, _, err := n.Config.GetConnectAddr()
+	addr, _, _, err := n.Config.GetConnectAddr(directory)
 	if err != nil {
 		return fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
 	}
@@ -403,14 +409,15 @@ func (n *Node) SaveInstanceConfig(config string) (string, error) {
 	return path, nil
 }
 
-func (n *Node) GetConnectAddr() (string, error) {
-	if n.Addr != "" {
-		return n.Addr, nil
+func (n *Node) GetConnectAddr() (string, string, error) {
+	if n.Addr != "" && (!strings.HasPrefix(n.Addr, "https") || n.Ca != "") {
+		return n.Addr, n.Ca, nil
 	}
 
-	addr, isTls, err := n.Config.GetConnectAddr()
+	directory := n.GetDirectory()
+	addr, isTls, ca, err := n.Config.GetConnectAddr(directory)
 	if err != nil {
-		return "", fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
+		return "", "", fmt.Errorf("failed to get connection address for node %v: %w", n.Name, err)
 	}
 
 	scheme := "http"
@@ -418,14 +425,18 @@ func (n *Node) GetConnectAddr() (string, error) {
 		scheme = "https"
 	}
 
-	return fmt.Sprintf("%v://%v", scheme, addr), nil
+	if strings.HasPrefix(n.Addr, "https") && n.Ca == "" {
+		n.Ca = ca
+	}
+
+	return fmt.Sprintf("%v://%v", scheme, addr), ca, nil
 }
 
 func (n *Node) GetEnv() (map[string]string, error) {
 	results := make(map[string]string)
 	prefix := "VAULT_"
 
-	addr, err := n.GetConnectAddr()
+	addr, ca, err := n.GetConnectAddr()
 	if err != nil {
 		return nil, err
 	}
@@ -433,18 +444,32 @@ func (n *Node) GetEnv() (map[string]string, error) {
 	results[prefix+"ADDR"] = addr
 	results[prefix+"TOKEN"] = n.Token
 
+	if ca != "" {
+		results[prefix+"CACERT"] = ca
+	}
+
 	return results, nil
 }
 
 func (n *Node) GetClient() (*api.Client, error) {
-	addr, err := n.GetConnectAddr()
+	addr, ca, err := n.GetConnectAddr()
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := api.NewClient(&api.Config{
+	cfg := &api.Config{
 		Address: addr,
-	})
+	}
+	if ca != "" {
+		tls := &api.TLSConfig{
+			CACert: ca,
+		}
+
+		if err := cfg.ConfigureTLS(tls); err != nil {
+			return nil, fmt.Errorf("failed to configure tls for client: %w", err)
+		}
+	}
+	client, err := api.NewClient(cfg)
 	if err != nil {
 		return nil, err
 	}

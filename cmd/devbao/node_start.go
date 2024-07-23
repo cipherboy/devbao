@@ -57,6 +57,10 @@ func DevServerFlags() []cli.Flag {
 			Value: "127.0.0.1:8200",
 			Usage: "development mode listener bind address",
 		},
+		&cli.BoolFlag{
+			Name:  "dev-tls",
+			Usage: "enable temporary TLS certificates for this instance",
+		},
 	}
 }
 
@@ -83,6 +87,7 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
 	force := cCtx.Bool("force")
+	devTls := cCtx.Bool("dev-tls")
 	profiles := cCtx.StringSlice("profiles")
 
 	if !force {
@@ -98,6 +103,7 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	opts := &bao.DevConfig{
 		Token:   cCtx.String("token"),
 		Address: cCtx.String("address"),
+		Tls:     devTls,
 	}
 
 	node, err := bao.BuildNode(name, nType, opts)

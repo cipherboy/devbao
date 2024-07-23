@@ -465,7 +465,7 @@ func (m *nodeInspect) View() string {
 		nodeType = "dev"
 	}
 
-	addr, err := m.Node.GetConnectAddr()
+	addr, ca, err := m.Node.GetConnectAddr()
 	if err != nil {
 		addr = fmt.Sprintf("[err: %v]", err)
 	}
@@ -478,6 +478,10 @@ func (m *nodeInspect) View() string {
 	msg += "\nState:   " + status
 	msg += "\nType:    " + nodeType
 	msg += "\nAddress: " + addr
+
+	if ca != "" {
+		msg += "\nCA Certificate: " + ca
+	}
 
 	msg += "\n\nSeal Keys\n"
 	if len(m.UnsealKeys) > 0 {
