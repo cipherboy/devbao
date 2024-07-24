@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openbao/openbao/api"
+	"github.com/openbao/openbao/api/v2"
 )
 
 type Unmarshable interface {

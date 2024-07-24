@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/openbao/openbao/api"
+	"github.com/openbao/openbao/api/v2"
 )
 
 const (
