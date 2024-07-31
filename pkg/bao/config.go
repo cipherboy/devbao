@@ -28,6 +28,10 @@ type ArgBuilder interface {
 	AddArgs(directory string) ([]string, error)
 }
 
+type PostUnsealHook interface {
+	PostUnseal(client *api.Client, directory string) error
+}
+
 const (
 	TLS_CA_NAME    = "ca.pem"
 	TLS_CERTS_NAME = "fullchain.pem"
@@ -215,6 +219,10 @@ func (r *RaftStorage) ToConfig(directory string) (string, error) {
 	return config, nil
 }
 
+func (r *RaftStorage) StorageType() string {
+	return "raft"
+}
+
 type FileStorage struct{}
 
 func (f *FileStorage) FromInterface(iface map[string]interface{}) error {
@@ -234,6 +242,10 @@ func (f *FileStorage) ToConfig(directory string) (string, error) {
 	return config, nil
 }
 
+func (f *FileStorage) StorageType() string {
+	return "file"
+}
+
 type InmemStorage struct{}
 
 func (i *InmemStorage) FromInterface(iface map[string]interface{}) error {
@@ -245,8 +257,14 @@ func (i *InmemStorage) ToConfig(_ string) (string, error) {
 	return config, nil
 }
 
+func (i *InmemStorage) StorageType() string {
+	return "inmem"
+}
+
 type Storage interface {
 	ConfigBuilder
+
+	StorageType() string
 }
 
 var (
@@ -291,6 +309,111 @@ func (t *TransitSeal) ToConfig(directory string) (string, error) {
 	return config, nil
 }
 
+type CommonAudit struct {
+	ConfigBuilder
+
+	ElideListResponses bool   `json:"elide_list_responses"`
+	Format             string `json:"format"`
+	HmacAccessor       bool   `json:"hmac_accessor"`
+	LogRaw             bool   `json:"log_raw"`
+	Prefix             string `json:"prefix"`
+}
+
+func (c *CommonAudit) FromInterface(iface map[string]interface{}) error {
+	c.ElideListResponses = iface["elide_list_responses"].(bool)
+	c.Format = iface["format"].(string)
+	c.HmacAccessor = iface["hmac_accessor"].(bool)
+	c.LogRaw = iface["log_raw"].(bool)
+	c.Prefix = iface["prefix"].(string)
+	return nil
+}
+
+func (c *CommonAudit) ToConfig(directory string) (string, error) {
+	// Audit does not go in the server HCL config.
+	return "", nil
+}
+
+type FileAudit struct {
+	CommonAudit
+
+	FilePath string `json:"file_path"`
+	Mode     string `json:"mode"`
+}
+
+func (f *FileAudit) FromInterface(iface map[string]interface{}) error {
+	if err := f.CommonAudit.FromInterface(iface); err != nil {
+		return fmt.Errorf("failed to parse common audit configuration: %w", err)
+	}
+	f.FilePath = iface["file_path"].(string)
+	f.Mode = iface["mode"].(string)
+	return nil
+}
+
+func (f *FileAudit) ToConfig(directory string) (string, error) {
+	// Audit does not go in the server HCL config.
+	return "", nil
+}
+
+func (f *FileAudit) PostUnseal(client *api.Client, directory string) error {
+	name := "audit"
+	if f.FilePath != "" {
+		name += "-custom"
+	}
+	if f.Format != "" {
+		name += "-" + f.Format
+	}
+	if f.LogRaw {
+		name += "-raw"
+	}
+
+	filePath := filepath.Join(directory, name)
+	filePath += ".log"
+
+	if f.FilePath == "" {
+		f.FilePath = filePath
+	}
+
+	opts := map[string]interface{}{
+		"elide_list_responses": f.ElideListResponses,
+		"hmac_accessor":        f.HmacAccessor,
+		"log_raw":              f.LogRaw,
+		"file_path":            f.FilePath,
+	}
+	if f.Format != "" {
+		opts["format"] = f.Format
+	}
+	if f.Prefix != "" {
+		opts["prefix"] = f.Prefix
+	}
+	if f.Mode != "" {
+		opts["mode"] = f.Mode
+	}
+
+	resp, err := client.Logical().Read("sys/audit")
+	if err != nil {
+		return fmt.Errorf("failed to list audit devices; %w", err)
+	}
+
+	if _, present := resp.Data[name]; !present {
+		data := map[string]interface{}{
+			"type":    "file",
+			"options": opts,
+		}
+		if _, err := client.Logical().Write("sys/audit/"+name, data); err != nil {
+			return fmt.Errorf("failed to create audit device %v: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+type Audit interface {
+	ConfigBuilder
+	PostUnsealHook
+}
+
+var _ Audit = &FileAudit{}
+
 type NodeConfig struct {
 	Dev           *DevConfig `json:"dev,omitempty"`
 	ListenerTypes []string   `json:"listener_types,omitempty"`
@@ -299,6 +422,8 @@ type NodeConfig struct {
 	Storage       Storage    `json:"storage,omitempty"`
 	SealTypes     []string   `json:"seal_types,omitempty"`
 	Seals         []Seal     `json:"seals,omitempty"`
+	AuditTypes    []string   `json:"audit_types,omitempty"`
+	Audits        []Audit    `json:"audits,omitempty"`
 }
 
 func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
@@ -379,6 +504,31 @@ func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
 		}
 	}
 
+	if audits, present := iface["audit_types"]; present && audits != nil {
+		auditsDataRaw := iface["audits"].([]interface{})
+		auditTypesRaw := audits.([]interface{})
+		if len(auditsDataRaw) != len(auditTypesRaw) {
+			return fmt.Errorf("unequal number of audit types (%v) as audits (%v)", len(auditTypesRaw), len(auditsDataRaw))
+		}
+
+		for index, auditTypeRaw := range auditTypesRaw {
+			auditType := auditTypeRaw.(string)
+			n.AuditTypes = append(n.AuditTypes, auditType)
+
+			switch auditType {
+			case "file":
+				n.Audits = append(n.Audits, &FileAudit{})
+			default:
+				return fmt.Errorf("unknown audit type at index %v: %v", index, auditType)
+			}
+
+			auditData := auditsDataRaw[index].(map[string]interface{})
+			if err := n.Audits[index].FromInterface(auditData); err != nil {
+				return fmt.Errorf("error parsing audit data at index %v: %v", index, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -422,6 +572,16 @@ func (n *NodeConfig) Validate() error {
 			n.SealTypes = append(n.SealTypes, "transit")
 		default:
 			return fmt.Errorf("unknown seal type at index %v: %T / %v", index, seal, seal)
+		}
+	}
+
+	n.AuditTypes = nil
+	for index, audit := range n.Audits {
+		switch audit.(type) {
+		case *FileAudit:
+			n.AuditTypes = append(n.AuditTypes, "file")
+		default:
+			return fmt.Errorf("unknown audit type at index %v: %T / %v", index, audit, audit)
 		}
 	}
 
@@ -493,6 +653,15 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 		lConfig, err := seal.ToConfig(directory)
 		if err != nil {
 			return "", fmt.Errorf("failed to build seal %d (%#v) to config: %w", index, seal, err)
+		}
+
+		config += lConfig + "\n"
+	}
+
+	for index, audit := range n.Audits {
+		lConfig, err := audit.ToConfig(directory)
+		if err != nil {
+			return "", fmt.Errorf("failed to build audit %d (%#v) to config: %w", index, audit, err)
 		}
 
 		config += lConfig + "\n"

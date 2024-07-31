@@ -82,6 +82,7 @@ var (
 	_ NodeConfigOpt = Storage(nil)
 	_ NodeConfigOpt = Seal(nil)
 	_ NodeConfigOpt = &DevConfig{}
+	_ NodeConfigOpt = Audit(nil)
 )
 
 func ListNodes() ([]string, error) {
@@ -160,6 +161,8 @@ func BuildNode(name string, product string, opts ...NodeConfigOpt) (*Node, error
 			n.Config.Storage = tOpt
 		case *DevConfig:
 			n.Config.Dev = tOpt
+		case Audit:
+			n.Config.Audits = append(n.Config.Audits, tOpt)
 		default:
 			return nil, fmt.Errorf("unknown type of node configuration option at index %d: %v (%T)", index, opt, opt)
 		}
@@ -617,4 +620,21 @@ func (n *Node) Unseal() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (n *Node) PostInitializeUnseal() error {
+	client, err := n.GetClient()
+	if err != nil {
+		return fmt.Errorf("failed to get client for node: %w", err)
+	}
+
+	directory := n.GetDirectory()
+
+	for index, audit := range n.Config.Audits {
+		if err := audit.PostUnseal(client, directory); err != nil {
+			return fmt.Errorf("failed applying audit %v post-unseal: %w", index, err)
+		}
+	}
+
+	return nil
 }

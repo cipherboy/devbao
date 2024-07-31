@@ -40,6 +40,11 @@ func ServerFlags(name string) []cli.Flag {
 			Aliases: []string{"p"},
 			Usage:   "profiles to apply to the new node",
 		},
+		&cli.BoolFlag{
+			Name:  "audit",
+			Value: false,
+			Usage: "enable file auditing of requests",
+		},
 	}
 
 	return append(ServerNameFlags(name), typeFlags...)
@@ -89,6 +94,7 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	force := cCtx.Bool("force")
 	devTls := cCtx.Bool("dev-tls")
 	profiles := cCtx.StringSlice("profiles")
+	audit := cCtx.Bool("audit")
 
 	if !force {
 		present, err := bao.NodeExists(name)
@@ -100,19 +106,33 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 			return fmt.Errorf("refusing to overwrite existing node %v", name)
 		}
 	}
-	opts := &bao.DevConfig{
+	var opts []bao.NodeConfigOpt
+	opts = append(opts, &bao.DevConfig{
 		Token:   cCtx.String("token"),
 		Address: cCtx.String("address"),
 		Tls:     devTls,
+	})
+
+	if audit {
+		opts = append(opts, &bao.FileAudit{})
+		opts = append(opts, &bao.FileAudit{
+			CommonAudit: bao.CommonAudit{
+				LogRaw: true,
+			},
+		})
 	}
 
-	node, err := bao.BuildNode(name, nType, opts)
+	node, err := bao.BuildNode(name, nType, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to build node: %w", err)
 	}
 
 	if err := node.Start(); err != nil {
 		return fmt.Errorf("failed to start node: %w", err)
+	}
+
+	if err := node.PostInitializeUnseal(); err != nil {
+		return fmt.Errorf("failed to apply post-unseal initialization; %w", err)
 	}
 
 	client, err := node.GetClient()
@@ -205,6 +225,7 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 	unseal := cCtx.Bool("unseal")
 	force := cCtx.Bool("force")
 	profiles := cCtx.StringSlice("profiles")
+	audit := cCtx.Bool("audit")
 
 	if !force {
 		present, err := bao.NodeExists(name)
@@ -285,6 +306,15 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 		})
 	}
 
+	if audit {
+		opts = append(opts, &bao.FileAudit{})
+		opts = append(opts, &bao.FileAudit{
+			CommonAudit: bao.CommonAudit{
+				LogRaw: true,
+			},
+		})
+	}
+
 	node, err := bao.BuildNode(name, nType, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to build node: %w", err)
@@ -307,6 +337,10 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 			// TODO: use a client request with proper back-off to determine
 			// when the node is responding.
 			time.Sleep(500 * time.Millisecond)
+
+			if err := node.PostInitializeUnseal(); err != nil {
+				return fmt.Errorf("failed to apply post-unseal initialization; %w", err)
+			}
 		}
 	}
 
