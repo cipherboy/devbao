@@ -44,6 +44,8 @@ interest!
    - [x] Initialize
    - [x] Seal
    - [X] Unseal
+   - [x] Enable auditing
+   - [x] Tail logs
  - [ ] Profiles
    - [x] List profiles
    - [x] Transit Unseal profile
