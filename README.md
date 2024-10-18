@@ -3,73 +3,57 @@
 `devbao` is a CLI utility to start [OpenBao](https://github.com/openbao/openbao)
 and HashiCorp Vault instances for **development purposes**.
 
+This allows you to skip many common steps such as creating configuration,
+initializing the instance, managing root tokens through the use of CLI flags
+and a common configuration directory.
+
+Missing an option? Open a pull request!
+
 ## Building
 
 To build and run:
 
 ```$
-make bin
-./bin/devbao
+$ make bin
+$ ./bin/devbao
 ```
 
-Because `devbao` is a static Go binary, it should be relocatable to go on `$PATH`.
+Because `devbao` is a static Go binary, it should be relocatable anywhere on
+`$PATH`.
 
 Data is presently stored in `$HOME/.local/share/devbao`.
+
+## CLI interface
 
 Refer to `devbao help` for more information about commands currently
 implemented.
 
-## TODO
+With Bash, a node could be created and connected with:
 
-Below are rough sketches of functionality that could potentially be in
-`devbao` in the future.
+```$
+# This starts a production (persistent) single node, initializing (to save the
+# root token and unseal keys), unsealing (to make it usable), and provisioning
+# a root and intermediate PKI mount (the `pki` profile).
+$ devbao node start --force --unseal --initialize --profiles pki
 
-Feel free to comment on the issue tracker if things are of particular
-interest!
+# This loads the environment details to contact this instance into the shell
+# session so that future `bao` commands will work.
+$ . <(devbao node env prod)
 
- - [x] Nodes
-   - [x] Start node
-     - [x] Auto-initialize
-     - [x] Apply profile
-   - [x] List nodes
-   - [x] Stop node
-   - [x] Resume node
-   - [x] Clean nodes
-   - [x] Transit Seal Config
-   - [x] Source environment
-   - [x] Access node directory
-   - [x] Get/Set unseal keys
-   - [x] Get/Set root token (prod)
-   - [x] Set desired connection address.
-   - [x] Initialize
-   - [x] Seal
-   - [X] Unseal
-   - [x] Enable auditing
-   - [x] Tail logs
- - [ ] Profiles
-   - [x] List profiles
-   - [x] Transit Unseal profile
-   - [x] PKI profile
-   - [x] Userpass profile
-   - [x] Remove profiles
-   - [ ] Make profiles configurable
-   - [ ] Add script-driven profiles
- - [ ] Clusters
-   - [x] Build Cluster
-   - [x] List clusters
-   - [x] Join node to HA cluster
-   - [x] Remove node from HA cluster
-   - [x] Clean cluster
-   - [ ] Cluster profiles
-     - [x] Three-node HA cluster
-     - [ ] Transit Auto-Unseal key cluster + target cluster
- - [ ] benchmark-vault integration
- - [ ] Auto-fetch release binaries
- - [ ] Ecosystem integrations
-   - [ ] Databases
-   - [ ] RabbitMQ
-   - [ ] Apache/nginx for certificates
-   - [ ] OpenLDAP/389-ds
-   - [ ] FreeRADIUS
-   - [ ] Run node/cluster on container?
- - [-] TUI?
+$ bao secrets list
+```
+
+HA cluster can similarly be created with the `devbao cluster start <name>`
+command.
+
+## TUI interface
+
+`devbao` features a basic TUI available under the `devbao tui` command.
+
+## Contributing
+
+Interested in contributing? Consider opening an issue to discuss the feature
+before opening a PR.
+
+See the [contributing guidelines](https://github.com/openbao/openbao/tree/main/CONTRIBUTING.md)
+in the OpenBao project as they apply here as well.
