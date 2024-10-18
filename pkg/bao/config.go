@@ -698,7 +698,7 @@ func (n *NodeConfig) GetConnectAddr(directory string) (string, bool, string, err
 		}
 		host, err := getConnectionAddr(address)
 
-		var rootCAPath = ""
+		rootCAPath := ""
 		if n.Dev.Tls {
 			rootCAPath = filepath.Join(directory, "vault-ca.pem")
 		}
