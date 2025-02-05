@@ -45,6 +45,11 @@ func ServerFlags(name string) []cli.Flag {
 			Value: false,
 			Usage: "enable file auditing of requests",
 		},
+		&cli.BoolFlag{
+			Name:  "ui",
+			Value: false,
+			Usage: "enable the web UI",
+		},
 	}
 
 	return append(ServerNameFlags(name), typeFlags...)
@@ -95,6 +100,7 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 	devTls := cCtx.Bool("dev-tls")
 	profiles := cCtx.StringSlice("profiles")
 	audit := cCtx.Bool("audit")
+	ui := cCtx.Bool("ui")
 
 	if !force {
 		present, err := bao.NodeExists(name)
@@ -120,6 +126,10 @@ func RunNodeStartDevCommand(cCtx *cli.Context) error {
 				LogRaw: true,
 			},
 		})
+	}
+
+	if ui {
+		opts = append(opts, &bao.UI{Enabled: true})
 	}
 
 	node, err := bao.BuildNode(name, nType, opts...)
@@ -226,6 +236,7 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 	force := cCtx.Bool("force")
 	profiles := cCtx.StringSlice("profiles")
 	audit := cCtx.Bool("audit")
+	ui := cCtx.Bool("ui")
 
 	if !force {
 		present, err := bao.NodeExists(name)
@@ -313,6 +324,10 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 				LogRaw: true,
 			},
 		})
+	}
+
+	if ui {
+		opts = append(opts, &bao.UI{Enabled: true})
 	}
 
 	node, err := bao.BuildNode(name, nType, opts...)
