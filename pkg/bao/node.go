@@ -162,6 +162,8 @@ func BuildNode(name string, product string, opts ...NodeConfigOpt) (*Node, error
 			n.Config.Storage = tOpt
 		case *DevConfig:
 			n.Config.Dev = tOpt
+		case *UI:
+			n.Config.UI = tOpt
 		case Audit:
 			n.Config.Audits = append(n.Config.Audits, tOpt)
 		default:

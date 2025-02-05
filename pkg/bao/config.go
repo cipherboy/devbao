@@ -407,12 +407,41 @@ func (f *FileAudit) PostUnseal(client *api.Client, directory string) error {
 	return nil
 }
 
+func (f *FileAudit) GetAudit() (string, error) {
+	data, err := os.ReadFile(f.FilePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open audit file %v for reading: %w", f.FilePath, err)
+	}
+
+	return string(data), nil
+}
+
 type Audit interface {
 	ConfigBuilder
 	PostUnsealHook
+
+	GetAudit() (string, error)
 }
 
 var _ Audit = &FileAudit{}
+
+type UI struct {
+	Enabled bool `json:"enabled"`
+}
+
+func (u *UI) FromInterface(ui map[string]interface{}) error {
+	u.Enabled = ui["enabled"].(bool)
+	return nil
+}
+
+func (u *UI) ToConfig(directory string) (string, error) {
+	// Audit does not go in the server HCL config.
+	return fmt.Sprintf("ui = %v\n", u.Enabled), nil
+}
+
+func (u *UI) PostUnseal(client *api.Client, directory string) error {
+	return nil
+}
 
 type NodeConfig struct {
 	Dev           *DevConfig `json:"dev,omitempty"`
@@ -424,6 +453,7 @@ type NodeConfig struct {
 	Seals         []Seal     `json:"seals,omitempty"`
 	AuditTypes    []string   `json:"audit_types,omitempty"`
 	Audits        []Audit    `json:"audits,omitempty"`
+	UI            *UI        `json:"ui,omitempty"`
 }
 
 func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
@@ -529,6 +559,13 @@ func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
 		}
 	}
 
+	if ui, present := iface["ui"]; present {
+		n.UI = &UI{}
+		if err := n.UI.FromInterface(ui.(map[string]interface{})); err != nil {
+			return fmt.Errorf("failed to load ui config: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -594,6 +631,16 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 	}
 
 	config := ``
+
+	if n.UI != nil {
+		uConfig, err := n.UI.ToConfig(directory)
+		if err != nil {
+			return "", fmt.Errorf("failed to build UI to config: %w", err)
+		}
+
+		config += uConfig + "\n"
+	}
+
 	for index, listener := range n.Listeners {
 		lConfig, err := listener.ToConfig(directory)
 		if err != nil {
