@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	PKIProfile      string = "pki"
-	TransitProfile  string = "transit"
-	UserpassProfile string = "userpass"
-	SecretProfile   string = "secret"
+	PKIProfile       string = "pki"
+	TransitProfile   string = "transit"
+	UserpassProfile  string = "userpass"
+	SecretProfile    string = "secret"
+	NamespaceProfile string = "namespace"
 )
 
 func ListProfiles() []string {
@@ -21,6 +22,7 @@ func ListProfiles() []string {
 		TransitProfile,
 		UserpassProfile,
 		SecretProfile,
+		NamespaceProfile,
 	}
 }
 
@@ -34,6 +36,8 @@ func ProfileDescription(name string) string {
 		return "enable userpass authentication and sample policy"
 	case SecretProfile:
 		return "enable a KVv2 static secret engine"
+	case NamespaceProfile:
+		return "enable a tree of namespaces with an auth and secret engine"
 	}
 
 	return ""
@@ -49,6 +53,8 @@ func ProfileSetup(client *api.Client, profile string) ([]string, error) {
 		return ProfileUserpassMountSetup(client)
 	case SecretProfile:
 		return ProfileSecretMountSetup(client)
+	case NamespaceProfile:
+		return ProfileNamespaceSetup(client)
 	default:
 		return nil, fmt.Errorf("unknown profile to apply: %v", profile)
 	}
@@ -64,6 +70,8 @@ func ProfileRemove(client *api.Client, profile string) ([]string, error) {
 		return ProfileUserpassMountRemove(client)
 	case SecretProfile:
 		return ProfileSecretMountRemove(client)
+	case NamespaceProfile:
+		return ProfileNamespaceRemove(client)
 	default:
 		return nil, fmt.Errorf("unknown profile to apply: %v", profile)
 	}
@@ -352,7 +360,7 @@ func ProfilePKIMountRemove(client *api.Client) ([]string, error) {
 
 var adminPolicy = `
 path "*" {
-	capabilities  = ["create", "update", "delete", "read", "patch", "list", "sudo"]
+	capabilities  = ["create", "update", "delete", "read", "patch", "list", "scan", "sudo"]
 }
 `
 
@@ -402,6 +410,16 @@ path "transit/random/*" {
 }
 
 path "secret/+/scratch/*" {
+	capabilities = ["create", "read", "update", "patch", "list", "scan"]
+}
+
+
+path "light/secret/+/light-scratch/*" {
+	capabilities = ["create", "read", "update", "patch", "list", "scan"]
+}
+
+
+path "dark/secret/+/dark-scratch/*" {
 	capabilities = ["create", "read", "update", "patch", "list", "scan"]
 }
 `
@@ -455,7 +473,7 @@ func ProfileSecretMountSetup(client *api.Client) ([]string, error) {
 	if err := client.Sys().Mount("secret", &api.MountInput{
 		Type: "kv-v2",
 	}); err != nil {
-		return nil, fmt.Errorf("failed to mount transit instance: %w", err)
+		return nil, fmt.Errorf("failed to mount KVv2 instance: %w", err)
 	}
 
 	return nil, nil
@@ -467,4 +485,69 @@ func ProfileSecretMountRemove(client *api.Client) ([]string, error) {
 	}
 
 	return nil, nil
+}
+
+func ProfileNamespaceSetup(client *api.Client) ([]string, error) {
+	var warnings []string
+
+	for _, parent := range []string{"red", "blue", "green"} {
+		if _, err := client.Logical().Write("sys/namespaces/"+parent, nil); err != nil {
+			return nil, fmt.Errorf("failed to create namespace %v: %w", parent, err)
+		}
+
+		nsClient := client.WithNamespace(parent)
+
+		// Provision initial data.
+		nsWarnings, err := ProfileUserpassMountSetup(nsClient)
+		if err != nil {
+			return nil, fmt.Errorf("for namespace %v: %w", parent, err)
+		}
+
+		for _, warning := range nsWarnings {
+			warnings = append(warnings, fmt.Sprintf("for namespace %v: %v", parent, warning))
+		}
+
+		nsWarnings, err = ProfileSecretMountSetup(nsClient)
+		if err != nil {
+			return nil, fmt.Errorf("for namespace %v: %w", parent, err)
+		}
+
+		for _, warning := range nsWarnings {
+			warnings = append(warnings, fmt.Sprintf("for namespace %v: %v", parent, warning))
+		}
+
+		for _, child := range []string{"light", "dark"} {
+
+			if _, err := nsClient.Logical().Write("sys/namespaces/"+child, nil); err != nil {
+				return nil, fmt.Errorf("failed to create namespace %v/%v: %w", parent, child, err)
+			}
+
+			childClient := client.WithNamespace(parent + "/" + child)
+
+			// Provision initial data.
+			nsWarnings, err = ProfileUserpassMountSetup(childClient)
+			if err != nil {
+				return nil, fmt.Errorf("for namespace %v/%v: %w", parent, child, err)
+			}
+
+			for _, warning := range nsWarnings {
+				warnings = append(warnings, fmt.Sprintf("for namespace %v/%v: %v", parent, child, warning))
+			}
+
+			nsWarnings, err := ProfileSecretMountSetup(childClient)
+			if err != nil {
+				return nil, fmt.Errorf("for namespace %v/%v: %w", parent, child, err)
+			}
+
+			for _, warning := range nsWarnings {
+				warnings = append(warnings, fmt.Sprintf("for namespace %v/%v: %v", parent, child, warning))
+			}
+		}
+	}
+
+	return warnings, nil
+}
+
+func ProfileNamespaceRemove(client *api.Client) ([]string, error) {
+	return []string{"cannot remove namespaces; requires manual cleanup"}, nil
 }
