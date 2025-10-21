@@ -384,7 +384,6 @@ func (f *FileAudit) FromInterface(iface map[string]interface{}) error {
 }
 
 func (f *FileAudit) ToConfig(directory string) (string, error) {
-	// Audit does not go in the server HCL config.
 	return "", nil
 }
 
@@ -686,6 +685,10 @@ func (n *NodeConfig) ToConfig(directory string) (string, error) {
 		}
 
 		config += lConfig + "\n"
+	}
+
+	if len(n.Audits) > 0 {
+		config += "unsafe_allow_api_audit_creation = true\n"
 	}
 
 	// Check if the user has permissions to lock memory and disable otherwise.
