@@ -455,7 +455,7 @@ func ProfileSecretMountSetup(client *api.Client) ([]string, error) {
 	if err := client.Sys().Mount("secret", &api.MountInput{
 		Type: "kv-v2",
 	}); err != nil {
-		return nil, fmt.Errorf("failed to mount transit instance: %w", err)
+		return nil, fmt.Errorf("failed to mount kv2 instance: %w", err)
 	}
 
 	return nil, nil
