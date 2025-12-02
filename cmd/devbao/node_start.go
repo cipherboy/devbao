@@ -185,11 +185,6 @@ func ProdServerFlags() []cli.Flag {
 			Value: cli.NewStringSlice("tcp:0.0.0.0:8200"),
 			Usage: "Bind address of the listener to add; can be specified multiple times. Use\n\t`tcp:` to prefix network listener bind addresses, or\n\t`unix:` to prefix socket listener paths.",
 		},
-		&cli.StringFlag{
-			Name:  "storage",
-			Value: "raft",
-			Usage: "Storage backend to use; choose between `raft`, `file`, or `inmem`. File and Memory backends are not recommended for production use.",
-		},
 		&cli.BoolFlag{
 			Name:    "initialize",
 			Aliases: []string{"auto-initialize", "i"},
@@ -200,6 +195,7 @@ func ProdServerFlags() []cli.Flag {
 
 	ret = append(ret, UnsealFlags()...)
 	ret = append(ret, sealFlags()...)
+	ret = append(ret, storageFlags()...)
 	return ret
 }
 
@@ -225,7 +221,6 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 
 	name := cCtx.String("name")
 	nType := cCtx.String("type")
-	storage := cCtx.String("storage")
 	initialize := cCtx.Bool("initialize")
 	unseal := cCtx.Bool("unseal")
 	force := cCtx.Bool("force")
@@ -254,15 +249,13 @@ func RunNodeStartCommand(cCtx *cli.Context) error {
 
 	var opts []bao.NodeConfigOpt
 
-	switch storage {
-	case "", "raft":
-		opts = append(opts, &bao.RaftStorage{})
-	case "file":
-		opts = append(opts, &bao.FileStorage{})
-	case "inmem":
-		opts = append(opts, &bao.InmemStorage{})
-	default:
-		return fmt.Errorf("unknown value for -storage: `%v`; supported values are `raft`, `file`, or `inmem`", storage)
+	storageOpts, err := getStorageOpts(cCtx)
+	if err != nil {
+		return err
+	}
+
+	if storageOpts != nil {
+		opts = append(opts, storageOpts...)
 	}
 
 	listeners := cCtx.StringSlice("listeners")

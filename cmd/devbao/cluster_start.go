@@ -50,6 +50,7 @@ func ClusterInfoFlags() []cli.Flag {
 	}
 
 	flags = append(flags, sealFlags()...)
+	flags = append(flags, storageFlags()...)
 	return flags
 }
 
@@ -138,6 +139,16 @@ func RunClusterStartCommand(cCtx *cli.Context) error {
 		port := portBase + index*100
 
 		var opts []bao.NodeConfigOpt
+
+		// Create storage opts per instance:
+		storageOpts, err := getStorageOpts(cCtx)
+		if err != nil {
+			return err
+		}
+
+		if storageOpts != nil {
+			opts = append(opts, storageOpts...)
+		}
 
 		opts = append(opts, &bao.RaftStorage{})
 		opts = append(opts, &bao.TCPListener{
