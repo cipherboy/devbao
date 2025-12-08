@@ -140,8 +140,10 @@ func (e *ExecEnvironment) ReadLogs() (string, error) {
 	// if the last character is not a new line, append one of our own
 	// and indicate the logs were truncated.
 	logs := string(rawLogs)
-	if logs[len(logs)-1] != '\n' {
+	if len(logs) > 0 && logs[len(logs)-1] != '\n' {
 		logs += "\n\t(logs truncated)\n"
+	} else if len(logs) == 0 {
+		logs += "\n\t(no logs)\n"
 	}
 
 	return logs, nil

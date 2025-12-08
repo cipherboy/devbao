@@ -69,7 +69,7 @@ func NodeStartModel() tabModel {
 	model.ProdListenerValues = append(model.ProdListenerValues, &prodListenerValue)
 	model.ProdListenerTypes = append(model.ProdListenerTypes, NewRadio(namespace, "Listen 0 Type", "listener socket protocol", []string{"tcp", "unix"}))
 
-	model.ProdStorageType = NewRadio(namespace, "Storage Type", "storage backend", []string{"raft", "file", "inmem"})
+	model.ProdStorageType = NewRadio(namespace, "Storage Type", "storage backend", []string{"raft", "file", "inmem", "postgresql"})
 	model.ProdInitialize = NewCheckbox(namespace, "Initialize", "")
 	model.ProdUnseal = NewCheckbox(namespace, "Unseal", "")
 
@@ -240,6 +240,8 @@ func (m *nodeStart) DoCreate() tea.Cmd {
 			opts = append(opts, &bao.FileStorage{})
 		case "inmem":
 			opts = append(opts, &bao.InmemStorage{})
+		case "postgresql":
+			opts = append(opts, &bao.PostgreSQLStorage{})
 		default:
 			m.Message = "unknown storage type: " + m.ProdStorageType.GetValue()
 			return nil

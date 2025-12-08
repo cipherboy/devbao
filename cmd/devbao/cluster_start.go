@@ -150,7 +150,6 @@ func RunClusterStartCommand(cCtx *cli.Context) error {
 			opts = append(opts, storageOpts...)
 		}
 
-		opts = append(opts, &bao.RaftStorage{})
 		opts = append(opts, &bao.TCPListener{
 			Address: fmt.Sprintf("%v:%d", listen, port),
 		})

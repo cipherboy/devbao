@@ -283,13 +283,18 @@ func (c *Cluster) JoinNodeHACluster(node *Node) error {
 		}
 	}
 
-	resp, err := nodeClient.Sys().RaftJoin(&api.RaftJoinRequest{
-		LeaderAPIAddr: leaderClient.Address(),
-		Retry:         true,
-		NonVoter:      node.NonVoter,
-	})
-	if err != nil {
-		return fmt.Errorf("failed joining node %v to cluster %v / leader %v: %w", node.Name, c.Name, leaderNode.Name, err)
+	joined := true
+	if node.Config.StorageType == "raft" {
+		resp, err := nodeClient.Sys().RaftJoin(&api.RaftJoinRequest{
+			LeaderAPIAddr: leaderClient.Address(),
+			Retry:         true,
+			NonVoter:      node.NonVoter,
+		})
+		if err != nil {
+			return fmt.Errorf("failed joining node %v to cluster %v / leader %v: %w", node.Name, c.Name, leaderNode.Name, err)
+		}
+
+		joined = resp.Joined
 	}
 
 	// Update this node's token to mirror the leadership.
@@ -301,7 +306,7 @@ func (c *Cluster) JoinNodeHACluster(node *Node) error {
 		return fmt.Errorf("failed saving updated state for joined node %v: %w", node.Name, err)
 	}
 
-	if !resp.Joined {
+	if joined {
 		time.Sleep(500 * time.Millisecond)
 
 		// Attempt to unseal using stored shamir's keys.

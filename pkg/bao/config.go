@@ -225,6 +225,33 @@ func (r *RaftStorage) StorageType() string {
 	return "raft"
 }
 
+type PostgreSQLStorage struct{}
+
+func (r *PostgreSQLStorage) FromInterface(iface map[string]interface{}) error {
+	return nil
+}
+
+func (r *PostgreSQLStorage) ToConfig(directory string) (string, error) {
+	path := filepath.Join(directory, "storage/psql")
+
+	config := `storage "postgresql" {` + "\n"
+	config += `  ha_enabled = true` + "\n"
+	config += `  max_parallel = 5` + "\n"
+	config += `  max_idle_connections = 2` + "\n"
+	config += `  max_connect_retries = 20` + "\n"
+	config += "}\n"
+
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return "", fmt.Errorf("failed to make raft storage directory (%v): %w", path, err)
+	}
+
+	return config, nil
+}
+
+func (r *PostgreSQLStorage) StorageType() string {
+	return "postgresql"
+}
+
 type FileStorage struct{}
 
 func (f *FileStorage) FromInterface(iface map[string]interface{}) error {
@@ -532,6 +559,8 @@ func (n *NodeConfig) FromInterface(iface map[string]interface{}) error {
 			n.Storage = &FileStorage{}
 		case "inmem":
 			n.Storage = &InmemStorage{}
+		case "postgresql":
+			n.Storage = &PostgreSQLStorage{}
 		case "":
 		}
 
@@ -632,6 +661,8 @@ func (n *NodeConfig) Validate() error {
 		n.StorageType = "file"
 	case *InmemStorage:
 		n.StorageType = "inmem"
+	case *PostgreSQLStorage:
+		n.StorageType = "postgresql"
 	case nil:
 	default:
 		return fmt.Errorf("unknown storage type: %T / %v", n.Storage, n.Storage)
